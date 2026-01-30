@@ -1,0 +1,43 @@
+{
+    "name": "Ryth-Bazar Agent",
+    "short_name": "Agent",
+    "description": "Field Sales & Order Management",
+    "start_url": "/agent/dashboard",
+    "scope": "/agent/",
+    "display": "standalone",
+    "background_color": "#F4F4F5",
+    "theme_color": "#D97706",
+    "icons": [
+        {
+            "src": "/icons/icon.svg",
+            "sizes": "192x192",
+            "type": "image/svg+xml"
+        },
+        {
+            "src": "/icons/icon.svg",
+            "sizes": "512x512",
+            "type": "image/svg+xml"
+        }
+    ],
+    "screenshots": [
+        {
+            "src": "/screenshots/agent-mobile.png",
+            "sizes": "540x720",
+            "form_factor": "narrow"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "Create Order",
+            "url": "/agent/orders/create"
+        },
+        {
+            "name": "My Routes",
+            "url": "/agent/routes"
+        },
+        {
+            "name": "Add Lead",
+            "url": "/agent/leads"
+        }
+    ]
+}

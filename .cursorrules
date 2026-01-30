@@ -1,0 +1,208 @@
+# Ryth_Bazar Development Rules
+
+## 📚 Source of Truth
+
+All development MUST strictly adhere to these Notion documentation sources (local backups in `docs/notion_sync/`):
+
+1. **Master Plan** (`docs/notion_sync/master_plan.md`)
+   - Tech stack and deployment workflow
+   - GitHub → Vercel deployment rules
+   - Firebase configuration
+   - Project structure
+
+2. **Design System** (`docs/notion_sync/design_system.md`)
+   - **Primary Color:** `#4169E1` (Royal Blue) - LOCKED
+   - **Secondary Color:** `#FFB84D` (Amber) - LOCKED
+   - **Border Radius:** `0.5rem` (rounded-lg) - LOCKED
+   - Tailwind configuration mapping
+
+3. **Unified UI Rules** (`docs/notion_sync/unified_ui_rules.md`)
+   - Layout systems (Sidebar / Stacked)
+   - Core components structure
+   - Spacing and elevation rules
+   - Platform assembly guidelines
+
+4. **Web Component Checklist** (`docs/notion_sync/web_component_checklist.md`)
+   - Component build order (Phase 1-6)
+   - Shadcn UI priority over custom CSS
+   - Testing and deployment checklist
+
+5. **Final Screen List** (`docs/notion_sync/final_screen_list.md`)
+   - **FROZEN SCOPE:** 16 screens total
+   - Customer Portal: 6 screens
+   - Sales Agent Portal: 5 screens
+   - Admin Dashboard: 5 screens
+
+---
+
+## 🎨 Design Enforcement
+
+### Colors (DO NOT DEVIATE)
+```js
+// tailwind.config.js MUST use these exact values:
+colors: {
+  primary: {
+    DEFAULT: '#4169E1',  // Royal Blue
+    600: '#4169E1',
+  },
+  secondary: {
+    DEFAULT: '#FFB84D',  // Amber
+  },
+}
+```
+
+### Usage
+- Primary buttons: `bg-primary hover:bg-primary-700`
+- Links: `text-primary hover:text-primary-700`
+- Cards: `rounded-lg` (0.5rem radius)
+
+---
+
+## 🚀 Deployment Workflow (MANDATORY)
+
+1. **Local Development**
+   - Work on `dev` branch or feature branches
+   - Test locally: `npm run dev`
+   - NEVER commit directly to `main`
+
+2. **Preview Deployment**
+   - Push to `dev` branch
+   - Vercel auto-creates preview URL
+   - Test on preview
+
+3. **Production Deployment**
+   - Create PR: `dev` → `main`
+   - Review and approve
+   - Merge to `main`
+   - Vercel auto-deploys to production
+
+**GitHub Repository:** Single repo
+**Hosting:** Vercel (auto-deploy on `main` push)
+**Backend:** Firebase (Firestore + Storage)
+
+---
+
+## 📦 Scope Control (STRICT)
+
+### ✅ Allowed Screens (16 Total)
+
+**Customer Portal (6):**
+1. Home / Product Catalog
+2. Product Detail
+3. Booking / Checkout
+4. Booking Confirmation
+5. Order History
+6. Order Detail
+
+**Sales Agent Portal (5):**
+1. Login / Attendance
+2. Dashboard
+3. Route Planner
+4. Order Creator
+5. Lead Manager
+
+**Admin Dashboard (5):**
+1. Overview Dashboard
+2. Order Management
+3. Product Management
+4. Agent Management
+5. Settings
+
+### ❌ DO NOT BUILD
+- Payment gateway (Phase 2)
+- User authentication/login (customer-side)
+- Reviews/ratings
+- Advanced analytics
+- Marketing features
+- Notifications
+- Any screen not in the Final Screen List
+
+---
+
+## 🛠 Technology Stack (LOCKED)
+
+### Frontend
+- **Framework:** Next.js 15 (App Router)
+- **Styling:** Tailwind CSS
+- **Components:** Shadcn UI (priority over custom CSS)
+- **Language:** TypeScript
+
+### Backend
+- **Database:** Firebase Firestore
+- **Storage:** Firebase Storage
+- **Auth:** Firebase Authentication (optional, Phase 2)
+
+### Development
+- **Version Control:** GitHub
+- **Deployment:** Vercel
+- **Package Manager:** npm
+
+---
+
+## 📁 File Structure
+
+```
+ryth-bazar/
+├── app/
+│   ├── (customer)/        # Customer routes
+│   ├── (agent)/           # Agent routes
+│   ├── (admin)/           # Admin routes
+│   └── layout.tsx
+├── components/
+│   ├── ui/                # Shadcn components
+│   ├── shared/            # Reusable components
+│   └── layouts/           # Layout components
+├── lib/
+│   ├── firebase.ts        # Firebase config
+│   └── utils.ts
+├── docs/
+│   └── notion_sync/       # Local Notion backups
+├── public/
+└── .env.local             # Firebase keys (gitignored)
+```
+
+---
+
+## ⚙️ Component Priority
+
+1. **Use Shadcn UI first** - Check shadcn/ui before creating custom
+2. **Follow Web Component Checklist** - Build in order (Phase 1 → 6)
+3. **Card-first UI** - Everything in cards (Stat, Product, Progress, etc.)
+4. **Responsive by default** - Sidebar (desktop) / Stacked (mobile)
+
+---
+
+## 🔒 Guardrails for AI Agent
+
+1. **Design:** Enforce exact Hex codes from Design System
+2. **Deployment:** Follow GitHub → Vercel workflow (no direct uploads)
+3. **Scope:** Build ONLY screens from Final Screen List
+4. **Components:** Use Shadcn UI, follow build order
+5. **No Scope Creep:** Don't add features not documented
+6. **Test Before Production:** Always use preview deployments
+
+---
+
+## 📝 Development Workflow
+
+When building components:
+1. Check `docs/notion_sync/web_component_checklist.md` for current phase
+2. Use colors from `docs/notion_sync/design_system.md`
+3. Follow layout rules from `docs/notion_sync/unified_ui_rules.md`
+4. Stay within scope of `docs/notion_sync/final_screen_list.md`
+5. Deploy via GitHub → Vercel per `docs/notion_sync/master_plan.md`
+
+---
+
+## 🚨 Critical Rules
+
+- **NEVER** use colors other than `#4169E1` (primary) and `#FFB84D` (secondary)
+- **NEVER** add screens not in the Final Screen List
+- **NEVER** commit directly to `main` branch
+- **ALWAYS** use Shadcn UI components before creating custom
+- **ALWAYS** test on Vercel preview before merging to main
+
+---
+
+**Last Synced:** 2026-01-19
+**Status:** All documentation locked and enforced

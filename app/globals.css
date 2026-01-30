@@ -1,0 +1,159 @@
+@import "tailwindcss";
+
+/* Ryth_Bazar Design System - Source: docs/notion_sync/design_system.md */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+
+  /* Design System Colors - LUXURY ZINC THEME */
+  --primary: #18181B;
+  /* Zinc 900 - Sophisticated Black/Dark Gray */
+  --primary-hover: #27272A;
+  /* Zinc 800 */
+  --secondary: #D97706;
+  /* Amber 600 - Muted Gold */
+  --secondary-hover: #B45309;
+  /* Amber 700 */
+
+  /* Border Radius - Refined */
+  --radius: 0.75rem;
+  /* Slightly more rounded (rounded-xl) */
+}
+
+@theme inline {
+  /* Base Colors */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  /* Primary Color (Zinc/Black) */
+  --color-primary-50: #F4F4F5;
+  --color-primary-100: #E4E4E7;
+  --color-primary-200: #D4D4D8;
+  --color-primary-300: #A1A1AA;
+  --color-primary-400: #71717A;
+  --color-primary-500: #52525B;
+  --color-primary-600: #3F3F46;
+  --color-primary-700: #27272A;
+  --color-primary-800: var(--primary-hover);
+  --color-primary-900: var(--primary);
+  --color-primary: var(--primary);
+
+  /* Secondary Color (Gold) */
+  --color-secondary-50: #FFFBEB;
+  --color-secondary-100: #FEF3C7;
+  --color-secondary-200: #FDE68A;
+  --color-secondary-300: #FCD34D;
+  --color-secondary-400: #FBBF24;
+  --color-secondary-500: #F59E0B;
+  --color-secondary-600: var(--secondary);
+  --color-secondary: var(--secondary);
+
+  /* Border Radius */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: var(--radius);
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+
+  /* Spacing Scale (from Unified UI Rules) */
+  --spacing-xs: 0.25rem;
+  /* 4px */
+  --spacing-s: 0.5rem;
+  /* 8px */
+  --spacing-m: 1rem;
+  /* 16px */
+  --spacing-l: 1.5rem;
+  /* 24px */
+  --spacing-xl: 2rem;
+  /* 32px */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #09090b;
+    /* Zinc 950 */
+    --foreground: #fafafa;
+    /* Zinc 50 */
+  }
+}
+
+body {
+  background: var(--color-primary-50);
+  /* Zinc 50 Background for Contrast */
+  color: var(--foreground);
+  font-family: var(--font-sans), sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Print Styles - Premium Invoice Look */
+@media print {
+  @page {
+    margin: 1.5cm;
+    size: A4;
+  }
+  
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+  }
+
+  /* Hide UI elements */
+  nav, 
+  header:not(.invoice-header), 
+  footer, 
+  button, 
+  .no-print,
+  a[href^="/"],
+  .sticky,
+  .action-footer {
+    display: none !important;
+  }
+
+  /* Reset layout for print */
+  .min-h-screen {
+    min-height: 0 !important;
+    background: white !important;
+    padding: 0 !important;
+  }
+
+  .max-w-3xl {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Clean up cards */
+  .bg-white, .bg-gray-50, .bg-amber-50, .bg-blue-50 {
+    background: white !important;
+    border: 1px solid #eee !important;
+    box-shadow: none !important;
+    border-radius: 8px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl {
+    box-shadow: none !important;
+  }
+
+  /* Typography for print */
+  h1, h2, h3, h4 {
+    color: black !important;
+  }
+
+  .text-amber-600, .text-blue-600, .text-green-600 {
+    color: black !important;
+    font-weight: bold !important;
+  }
+
+  /* Ensure items table looks good */
+  .divide-y > * {
+    border-bottom: 1px solid #eee !important;
+  }
+
+  /* Add periodic page breaks if needed */
+  .page-break {
+    page-break-after: always;
+  }
+}
