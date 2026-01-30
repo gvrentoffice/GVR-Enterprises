@@ -18,7 +18,7 @@ export default function CustomerLayout({
     return (
         <div className="min-h-screen bg-transparent flex flex-col"> {/* Background is handled by body in globals.css */}
             {/* Minimal Header with distinct separation */}
-            <header className="sticky top-0 z-40 w-full bg-white border-b border-gray-200 shadow-sm">
+            <header className="relative z-40 w-full bg-white border-b border-gray-200 shadow-sm">
                 <div className="container flex h-16 items-center justify-between px-4">
 
                     {/* Logo & Mobile Menu */}
@@ -94,12 +94,6 @@ function BottomNavigation({ cartSize }: { cartSize: number }) {
                                     </span>
                                 )}
                             </div>
-                            <span className={cn(
-                                "text-[10px] font-bold tracking-tight transition-opacity duration-300",
-                                isActive ? "opacity-100" : "opacity-0"
-                            )}>
-                                {item.label}
-                            </span>
 
                             {isActive && (
                                 <span className="absolute -bottom-1 w-1 h-1 bg-amber-600 rounded-full" />
