@@ -172,36 +172,9 @@ function LoginForm() {
                     return;
                 }
 
-                // 2. CHECK DATABASE FOR EXISTING USERS (Bypass OTP per request)
-                // Check Agent
-                let existingAgent = await getAgentByWhatsApp(formattedNumber);
-                if (!existingAgent) {
-                    existingAgent = await getAgentByWhatsApp(normalizedNumber);
-                }
-
-                if (existingAgent) {
-                    localStorage.setItem('agent_whatsapp_session', JSON.stringify(existingAgent));
-                    await createSession(existingAgent.id, 'agent');
-                    toast({ title: "Welcome Back", description: "Logged in as Agent" });
-                    router.push('/agent');
-                    setLoading(false);
-                    return;
-                }
-
-                // Check Customer
-                let existingLead = await getLeadByWhatsApp(formattedNumber);
-                if (!existingLead) {
-                    existingLead = await getLeadByWhatsApp(normalizedNumber);
-                }
-
-                if (existingLead) {
-                    localStorage.setItem('customer', JSON.stringify(existingLead));
-                    await createSession(existingLead.id, 'customer');
-                    toast({ title: "Welcome Back", description: "Logged in as Customer" });
-                    router.push('/shop');
-                    setLoading(false);
-                    return;
-                }
+                // 2. [REMOVED] CHECK DATABASE FOR EXISTING USERS (Bypass OTP)
+                // We now enforce OTP for all WhatsApp logins to verify ownership.
+                // Flow continues to Step 3 (Send OTP).
             }
 
             // 3. IF UNKNOWN -> SEND OTP (New Registration)
@@ -210,8 +183,33 @@ function LoginForm() {
                 if (!confirmationResult) throw new Error("No confirmation result");
                 await confirmationResult.confirm(otpCode);
 
-                // Note: user is already signed in to Firebase Auth here.
+                // OTP Verified! Now check if user exists in DB
 
+                // Check Agent
+                let existingAgent = await getAgentByWhatsApp(formattedNumber);
+                if (!existingAgent) existingAgent = await getAgentByWhatsApp(normalizedNumber);
+
+                if (existingAgent) {
+                    localStorage.setItem('agent_whatsapp_session', JSON.stringify(existingAgent));
+                    await createSession(existingAgent.id, 'agent');
+                    toast({ title: "Welcome Back", description: "Logged in as Agent" });
+                    router.push('/agent');
+                    return;
+                }
+
+                // Check Customer
+                let existingLead = await getLeadByWhatsApp(formattedNumber);
+                if (!existingLead) existingLead = await getLeadByWhatsApp(normalizedNumber);
+
+                if (existingLead) {
+                    localStorage.setItem('customer', JSON.stringify(existingLead));
+                    await createSession(existingLead.id, 'customer');
+                    toast({ title: "Welcome Back", description: "Logged in as Customer" });
+                    router.push('/shop');
+                    return;
+                }
+
+                // If New User -> Create Account
                 await createLeadFromGoogleSignIn(
                     `user${normalizedNumber}@rythbazar.com`, // Placeholder email
                     `User ${normalizedNumber}`, // Placeholder name
@@ -244,16 +242,23 @@ function LoginForm() {
         } catch (error) {
             const err = error as Error;
             console.error('Login Error:', err);
-            const win = window as unknown as { recaptchaVerifier: RecaptchaVerifier | null };
-            if (win.recaptchaVerifier) {
-                win.recaptchaVerifier.clear();
-                win.recaptchaVerifier = null;
+
+            try {
+                const win = window as unknown as { recaptchaVerifier: RecaptchaVerifier | null };
+                if (win?.recaptchaVerifier) {
+                    win.recaptchaVerifier.clear();
+                    win.recaptchaVerifier = null;
+                }
+            } catch (e) {
+                console.warn("Error clearing recaptcha:", e);
             }
+
             toast({
                 variant: "destructive",
                 title: "Login Failed",
                 description: err.message || "Could not verify number.",
             });
+        } finally {
             setLoading(false);
         }
     };
@@ -379,15 +384,15 @@ function LoginForm() {
 
     return (
         <div className="min-h-screen flex flex-col justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-red-50">
-            <div className="w-full max-w-[440px] mx-auto px-4 py-8">
+            <div className="w-full max-w-[440px] mx-auto px-4 py-4 md:py-8">
                 {/* Logo Section */}
-                <div className="text-center mb-8">
-                    <div className="relative w-32 h-32 mx-auto mb-6">
+                <div className="text-center mb-6 pt-[10px]">
+                    <div className="relative w-24 h-24 md:w-32 md:h-32 mx-auto mb-4 md:mb-6">
                         {/* Outer glow */}
                         <div className="absolute inset-0 bg-gradient-to-br from-amber-400/40 to-orange-500/40 rounded-[28px] blur-2xl"></div>
 
                         {/* Logo container */}
-                        <div className="relative w-32 h-32 bg-white rounded-[28px] overflow-hidden shadow-2xl shadow-orange-500/30 ring-4 ring-white/50 transform hover:scale-105 transition-transform duration-300">
+                        <div className="relative w-24 h-24 md:w-32 md:h-32 bg-white rounded-[20px] md:rounded-[28px] overflow-hidden shadow-2xl shadow-orange-500/30 ring-4 ring-white/50 transform hover:scale-105 transition-transform duration-300">
                             <img
                                 src="/apple-icon.png"
                                 alt="Ryth Bazar Logo"
@@ -396,12 +401,12 @@ function LoginForm() {
                         </div>
                     </div>
 
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Ryth Bazar</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Ryth Bazar</h1>
                     <p className="text-sm text-gray-600">Sign in to continue</p>
                 </div>
 
                 {/* Login Card */}
-                <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 p-6 md:p-8 space-y-6">
+                <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 p-5 md:p-8 space-y-6">
 
                     {isStaffMode ? (
                         /* Admin Login */
@@ -421,7 +426,7 @@ function LoginForm() {
                                         <Input
                                             type="email"
                                             placeholder="admin@rythbazar.com"
-                                            className="pl-12 h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-gray-100 transition-all rounded-2xl text-base"
+                                            className="pl-12 h-12 md:h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-gray-100 transition-all rounded-2xl text-base"
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
                                             required
@@ -437,7 +442,7 @@ function LoginForm() {
                                         <Input
                                             type="password"
                                             placeholder="••••••••"
-                                            className="pl-12 h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-gray-100 transition-all rounded-2xl text-base"
+                                            className="pl-12 h-12 md:h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-gray-100 transition-all rounded-2xl text-base"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
                                             required
@@ -446,7 +451,7 @@ function LoginForm() {
                                 </div>
                                 <Button
                                     type="submit"
-                                    className="w-full h-14 bg-gray-900 hover:bg-gray-800 text-white rounded-2xl shadow-lg shadow-gray-200 transition-all hover:scale-[1.02] active:scale-[0.98] font-semibold text-base"
+                                    className="w-full h-12 md:h-14 bg-gray-900 hover:bg-gray-800 text-white rounded-2xl shadow-lg shadow-gray-200 transition-all hover:scale-[1.02] active:scale-[0.98] font-semibold text-base"
                                     disabled={adminLoading}
                                 >
                                     {adminLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Sign In as Admin"}
@@ -476,15 +481,13 @@ function LoginForm() {
                                 <form onSubmit={handleWhatsAppLogin} className="space-y-4">
                                     {!showOtp ? (
                                         <div className="space-y-3">
-                                            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wider ml-1">
-                                                Mobile Number
-                                            </Label>
+
                                             <div className="relative group">
                                                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-emerald-600 transition-colors" />
                                                 <Input
                                                     type="tel"
                                                     placeholder="+91 98765 43210"
-                                                    className="pl-12 h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-emerald-100 transition-all rounded-2xl text-base"
+                                                    className="pl-12 h-12 md:h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-emerald-100 transition-all rounded-2xl text-base"
                                                     value={whatsappNumber}
                                                     onChange={(e) => setWhatsappNumber(e.target.value)}
                                                     required
@@ -503,7 +506,7 @@ function LoginForm() {
                                                 type="text"
                                                 maxLength={6}
                                                 placeholder="000000"
-                                                className="h-16 bg-gray-50/50 border-gray-200 text-center text-3xl tracking-[0.5em] font-bold focus:bg-white focus:ring-4 focus:ring-emerald-100 transition-all rounded-2xl"
+                                                className="h-16 bg-gray-50/50 border-gray-200 text-center text-3xl tracking-[0.25em] md:tracking-[0.5em] font-bold focus:bg-white focus:ring-4 focus:ring-emerald-100 transition-all rounded-2xl"
                                                 value={otpCode}
                                                 onChange={(e) => setOtpCode(e.target.value)}
                                                 required
@@ -522,7 +525,7 @@ function LoginForm() {
 
                                     <Button
                                         type="submit"
-                                        className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-lg shadow-emerald-100 transition-all hover:scale-[1.02] active:scale-[0.98] font-semibold text-base"
+                                        className="w-full h-12 md:h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-lg shadow-emerald-100 transition-all hover:scale-[1.02] active:scale-[0.98] font-semibold text-base"
                                         disabled={loading}
                                     >
                                         {loading ? (
@@ -551,7 +554,7 @@ function LoginForm() {
                                     <Button
                                         type="button"
                                         onClick={handleGoogleLogin}
-                                        className="w-full h-14 bg-white border-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-gray-700 rounded-2xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 font-semibold text-base"
+                                        className="w-full h-12 md:h-14 bg-white border-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-gray-700 rounded-2xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 font-semibold text-base"
                                         disabled={loading}
                                     >
                                         {loading ? (
