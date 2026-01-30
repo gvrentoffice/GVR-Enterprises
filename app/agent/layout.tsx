@@ -104,7 +104,10 @@ export default function AgentLayout({
                                         </Link>
 
                                         <div
-                                            onClick={() => { logout(); setIsProfileOpen(false); }}
+                                            onClick={() => {
+                                                localStorage.removeItem('agent_whatsapp_session');
+                                                window.location.href = '/login?role=agent';
+                                            }}
                                             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-600 hover:bg-red-50 transition-colors font-bold text-sm cursor-pointer"
                                         >
                                             <div className="w-8 h-8 rounded-lg bg-red-100/50 flex items-center justify-center">

@@ -76,11 +76,21 @@ export default function AdminLayout({
                             <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-xs font-black text-amber-600 border border-zinc-100">
                                 AD
                             </div>
-                            <div className="flex flex-col">
+                            <div className="flex flex-col flex-1">
                                 <p className="text-xs font-black text-zinc-900 leading-tight">Master Admin</p>
                                 <p className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mt-1">Full Access</p>
                             </div>
                         </div>
+                        <button
+                            onClick={() => {
+                                localStorage.removeItem('admin_session');
+                                window.location.href = '/login?role=admin';
+                            }}
+                            className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-red-100"
+                        >
+                            <LogOut className="w-4 h-4" />
+                            Logout
+                        </button>
                     </div>
                 </div>
             </aside>
@@ -112,9 +122,8 @@ export default function AdminLayout({
                         <button
                             className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-red-400 hover:bg-red-400/10 rounded-2xl transition-colors"
                             onClick={() => {
-                                // Add logout logic here
-                                console.log('Logging out...');
-                                setShowProfileMenu(false);
+                                localStorage.removeItem('admin_session');
+                                window.location.href = '/login?role=admin';
                             }}
                         >
                             <LogOut className="w-4 h-4" />
