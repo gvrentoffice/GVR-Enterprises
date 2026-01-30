@@ -9,6 +9,8 @@ import { getLeadByWhatsApp } from '@/lib/firebase/services/leadService';
 import { getAgentByWhatsApp } from '@/lib/firebase/services/agentService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/app/AuthContext';
+import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import { auth } from '@/lib/firebase/config';
 import { Loader2, Phone, ShieldCheck, Mail, Lock, ChevronRight } from 'lucide-react';
 
 type LoginMethod = 'customer' | 'agent' | 'admin';
@@ -59,6 +61,11 @@ function LoginForm() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
 
+    // OTP State
+    const [showOtp, setShowOtp] = useState(false);
+    const [otpCode, setOtpCode] = useState('');
+    const [confirmationResult, setConfirmationResult] = useState<any>(null);
+
     // Auto-redirect if already logged in
     useEffect(() => {
         const adminSession = localStorage.getItem('isAdminLoggedIn');
@@ -87,58 +94,95 @@ function LoginForm() {
     }, [initialMethod]);
 
 
+    const setupRecaptcha = () => {
+        if (typeof window !== 'undefined' && !(window as any).recaptchaVerifier) {
+            (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+                'size': 'invisible'
+            });
+        }
+    };
+
     const handleWhatsAppLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
         try {
-            if (method === 'agent') {
-                const agent = await getAgentByWhatsApp(whatsappNumber);
-                if (agent) {
-                    localStorage.setItem('agent_whatsapp_session', JSON.stringify(agent));
-                    await createSession(agent.id, 'agent'); // Set session cookie
-                    toast({
-                        title: "Agent Login Successful",
-                        description: `Welcome back, ${agent.name}!`,
-                    });
-                    setTimeout(() => router.push('/agent'), 1000);
+            if (showOtp) {
+                // VERIFY OTP PHASE
+                if (!confirmationResult) throw new Error("No confirmation result");
+                const result = await confirmationResult.confirm(otpCode);
+                const user = result.user;
+
+                let userData = null;
+                if (method === 'agent') {
+                    userData = await getAgentByWhatsApp(whatsappNumber);
                 } else {
-                    toast({
-                        variant: "destructive",
-                        title: "Login Failed",
-                        description: "No agent session found with this WhatsApp number.",
-                    });
+                    userData = await getLeadByWhatsApp(whatsappNumber);
                 }
-            } else {
-                // Customer Login via WhatsApp
-                const customer = await getLeadByWhatsApp(whatsappNumber);
-                if (customer) {
-                    if (!['approved', 'converted'].includes(customer.status)) {
-                        // Relaxed check: allow pending but warn? Or strictly duplicate checks.
-                        // Keeping logic simple: if existing lead, let them in, access control middleware/components handle price visibility.
+
+                if (userData) {
+                    if (method === 'agent') {
+                        localStorage.setItem('agent_whatsapp_session', JSON.stringify(userData));
+                        await createSession(userData.id, 'agent');
+                    } else {
+                        localStorage.setItem('customer', JSON.stringify(userData));
+                        await createSession(userData.id, 'customer');
                     }
-                    localStorage.setItem('customer', JSON.stringify(customer));
-                    await createSession(customer.id, 'customer'); // Set session cookie
                     toast({
                         title: "Login Successful",
-                        description: "Welcome to Ryth Bazar!",
+                        description: "Identity verified. Redirecting...",
                     });
-                    setTimeout(() => router.push('/shop'), 1000);
+                    router.push(method === 'agent' ? '/agent' : '/shop');
                 } else {
                     toast({
                         variant: "destructive",
-                        title: "Account Not Found",
-                        description: "Please contact your agent for access.",
+                        title: "Account Missing",
+                        description: "Identity verified but no linked account found.",
                     });
                 }
+                return;
             }
 
-        } catch (error) {
-            console.error(error);
+            // SEND OTP PHASE
+            let userData = null;
+            if (method === 'agent') {
+                userData = await getAgentByWhatsApp(whatsappNumber);
+            } else {
+                userData = await getLeadByWhatsApp(whatsappNumber);
+            }
+
+            if (!userData) {
+                toast({
+                    variant: "destructive",
+                    title: "Access Denied",
+                    description: "This number is not registered. Please contact an agent.",
+                });
+                setLoading(false);
+                return;
+            }
+
+            setupRecaptcha();
+            const appVerifier = (window as any).recaptchaVerifier;
+            const formattedNumber = whatsappNumber.startsWith('+') ? whatsappNumber : `+91${whatsappNumber}`;
+
+            const confirmation = await signInWithPhoneNumber(auth, formattedNumber, appVerifier);
+            setConfirmationResult(confirmation);
+            setShowOtp(true);
+            toast({
+                title: "OTP Sent",
+                description: `A code has been sent to ${formattedNumber}`,
+            });
+
+        } catch (error: any) {
+            console.error('OTP Error:', error);
+            if ((window as any).recaptchaVerifier) {
+                (window as any).recaptchaVerifier.clear();
+                (window as any).recaptchaVerifier = null;
+            }
             toast({
                 variant: "destructive",
-                title: "Error",
-                description: "An unexpected error occurred.",
+                title: "Verification Failed",
+                description: error.message || "Could not send OTP.",
             });
         } finally {
             setLoading(false);
@@ -153,7 +197,6 @@ function LoginForm() {
 
             if (!email) throw new Error("No email provided by Google");
 
-            // Check if user is an existing lead
             const customer = await getLeadByEmail(email);
 
             if (customer) {
@@ -165,27 +208,19 @@ function LoginForm() {
                 });
                 router.push('/shop');
             } else {
-                // New Customer / Not Onboarded
-                // For now, allow login but with restricted access or redirect to onboarding?
-                // Prompt says "customer can access portal".
-                // We'll create a session but they won't have a linked Lead ID maybe?
-                // Or we deny access? 
-                // "they need Agent approval to access prices". 
-                // Let's deny if not onboarded for now to keep it strict as per "Account Not Found" logic above.
-                // OR we can allow them to enter as a guest?
-                // Let's stick to: Must be onboarded.
                 toast({
                     variant: "destructive",
-                    title: "Account Not Found",
-                    description: `No account found for ${email}. Please contact an agent to onboard your shop.`,
+                    title: "Account Not Onboarded",
+                    description: `The email ${email} is not linked to any shop. Please contact an agent.`,
                 });
+                await logoutUser(); // Clean up if not onboarded
             }
         } catch (error) {
-            console.error(error);
+            console.error('Google Login Error:', error);
             toast({
                 variant: "destructive",
                 title: "Login Failed",
-                description: "Could not sign in with Google.",
+                description: "Make sure your domain is authorized in Firebase Console.",
             });
         } finally {
             setLoading(false);
@@ -197,11 +232,11 @@ function LoginForm() {
         try {
             const user = await adminLogin(email, password);
             if (user) {
-                await createSession(user.uid, 'admin'); // Set session cookie
+                await createSession(user.uid, 'admin');
                 localStorage.setItem('isAdminLoggedIn', 'true');
                 toast({
                     title: "Admin Login Successful",
-                    description: "Generating secure session...",
+                    description: "Accessing dashboard...",
                 });
                 setTimeout(() => router.push('/admin'), 1000);
             }
@@ -216,167 +251,168 @@ function LoginForm() {
     };
 
     return (
-        <div className="w-full max-w-md mx-auto p-4 md:p-8">
-            <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-xl shadow-purple-200">
-                    <ShieldCheck className="w-8 h-8 text-white" />
-                </div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Ryth Bazar</h1>
-                <p className="text-gray-500">Secure Access Portal</p>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 p-6">
-                {/* Method Switcher */}
-                <div className="flex bg-gray-50 p-1 rounded-xl mb-8 relative">
-                    <div
-                        className="absolute h-[calc(100%-8px)] top-1 bg-white rounded-lg shadow-sm transition-all duration-300 ease-out border border-gray-100"
-                        style={{
-                            width: '33.33%',
-                            left: method === 'customer' ? '4px' : method === 'agent' ? '33.33%' : 'calc(66.66% - 4px)'
-                        }}
-                    />
-                    {(['customer', 'agent', 'admin'] as const).map((m) => (
-                        <button
-                            key={m}
-                            onClick={() => setMethod(m)}
-                            className={`flex-1 relative z-10 py-2.5 text-sm font-medium transition-colors duration-200 capitalize ${method === m ? 'text-gray-900' : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                        >
-                            {m}
-                        </button>
-                    ))}
+        <div className="min-h-screen flex flex-col justify-center bg-gray-50/50">
+            <div className="w-full max-w-[420px] mx-auto px-4 py-8">
+                <div className="text-center mb-6">
+                    <div className="w-14 h-14 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-xl shadow-indigo-100">
+                        <ShieldCheck className="w-7 h-7 text-white" />
+                    </div>
+                    <h1 className="text-2xl font-bold text-gray-900 mb-1">Ryth Bazar</h1>
+                    <p className="text-sm text-gray-500">Secure Access Portal</p>
                 </div>
 
-                {/* Forms */}
-                <div className="min-h-[300px]">
-                    {method === 'admin' ? (
-                        <form onSubmit={handleAdminLogin} className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                            <div className="space-y-1.5">
-                                <Label className="text-gray-700 font-medium">Email Address</Label>
-                                <div className="relative group">
-                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-purple-600 transition-colors" />
-                                    <Input
-                                        type="email"
-                                        placeholder="admin@rythbazar.com"
-                                        className="pl-10 h-12 bg-white border-gray-200 focus:border-purple-600 focus:ring-purple-600/20 rounded-xl"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label className="text-gray-700 font-medium">Password</Label>
-                                <div className="relative group">
-                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-purple-600 transition-colors" />
-                                    <Input
-                                        type="password"
-                                        placeholder="••••••••"
-                                        className="pl-10 h-12 bg-white border-gray-200 focus:border-purple-600 focus:ring-purple-600/20 rounded-xl"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        required
-                                    />
-                                </div>
-                            </div>
-                            <Button
-                                type="submit"
-                                className="w-full h-12 bg-gray-900 hover:bg-gray-800 text-white rounded-xl shadow-lg shadow-gray-200 transition-all hover:scale-[1.02] active:scale-[0.98] mt-4"
-                                disabled={adminLoading}
+                <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 p-5 md:p-8">
+                    {/* Method Switcher */}
+                    <div className="flex bg-gray-100/80 p-1 rounded-2xl mb-6 relative">
+                        <div
+                            className="absolute h-[calc(100%-8px)] top-1 bg-white rounded-xl shadow-sm transition-all duration-300 ease-out"
+                            style={{
+                                width: '33.33%',
+                                left: method === 'customer' ? '4px' : method === 'agent' ? '33.33%' : 'calc(66.66% - 4px)'
+                            }}
+                        />
+                        {(['customer', 'agent', 'admin'] as const).map((m) => (
+                            <button
+                                key={m}
+                                onClick={() => {
+                                    setMethod(m);
+                                    setShowOtp(false);
+                                }}
+                                className={`flex-1 relative z-10 py-2.5 text-xs font-semibold transition-colors duration-200 capitalize ${method === m ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
+                                    }`}
                             >
-                                {adminLoading ? (
-                                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                                ) : (
-                                    <>
-                                        Sign In as Admin
-                                        <ChevronRight className="w-4 h-4 ml-2" />
-                                    </>
-                                )}
-                            </Button>
-                        </form>
-                    ) : (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
-                            {method === 'customer' && (
-                                <Button
-                                    type="button"
-                                    onClick={handleGoogleLogin}
-                                    className="w-full h-12 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] mb-4 flex items-center justify-center gap-3"
-                                    disabled={loading}
-                                >
-                                    {loading ? (
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                    ) : (
-                                        <>
-                                            <GoogleIcon />
-                                            Sign in with Google
-                                        </>
-                                    )}
-                                </Button>
-                            )}
+                                {m}
+                            </button>
+                        ))}
+                    </div>
 
-                            <div className="relative flex py-2 items-center">
-                                <div className="flex-grow border-t border-gray-200"></div>
-                                <span className="flex-shrink-0 mx-4 text-gray-400 text-xs uppercase font-medium">Or continue with Number</span>
-                                <div className="flex-grow border-t border-gray-200"></div>
-                            </div>
-
-                            <form onSubmit={handleWhatsAppLogin} className="space-y-4">
+                    <div className="min-h-[320px]">
+                        {method === 'admin' ? (
+                            <form onSubmit={handleAdminLogin} className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                                 <div className="space-y-1.5">
-                                    <Label className="text-gray-700 font-medium">
-                                        {method === 'agent' ? 'Agent Phone Number' : 'WhatsApp Number'}
-                                    </Label>
+                                    <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider ml-1">Email Address</Label>
                                     <div className="relative group">
-                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-purple-600 transition-colors" />
+                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
                                         <Input
-                                            type="tel"
-                                            placeholder="+91 98765 43210"
-                                            className="pl-10 h-12 bg-white border-gray-200 focus:border-purple-600 focus:ring-purple-600/20 rounded-xl"
-                                            value={whatsappNumber}
-                                            onChange={(e) => setWhatsappNumber(e.target.value)}
+                                            type="email"
+                                            placeholder="admin@rythbazar.com"
+                                            className="pl-12 h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all rounded-2xl"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
                                             required
                                         />
                                     </div>
                                 </div>
-
-                                <div className="bg-blue-50/50 rounded-xl p-4 border border-blue-100">
-                                    <h4 className="font-semibold text-blue-900 text-sm mb-1">
-                                        {method === 'agent' ? 'Agent Access' : 'Customer Access'}
-                                    </h4>
-                                    <p className="text-xs text-blue-700 leading-relaxed opacity-90">
-                                        {method === 'agent'
-                                            ? 'Enter your registered mobile number to access your dashboard and manage orders.'
-                                            : 'Enter your WhatsApp number to browse products and track your orders.'}
-                                    </p>
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider ml-1">Password</Label>
+                                    <div className="relative group">
+                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
+                                        <Input
+                                            type="password"
+                                            placeholder="••••••••"
+                                            className="pl-12 h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all rounded-2xl"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            required
+                                        />
+                                    </div>
                                 </div>
-
                                 <Button
                                     type="submit"
-                                    className={`w-full h-12 rounded-xl shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] mt-2 ${method === 'agent'
-                                        ? 'bg-purple-600 hover:bg-purple-700 shadow-purple-200 text-white'
-                                        : 'bg-green-600 hover:bg-green-700 shadow-green-200 text-white'
-                                        }`}
-                                    disabled={loading}
+                                    className="w-full h-14 bg-gray-900 hover:bg-gray-800 text-white rounded-2xl shadow-lg shadow-gray-200 transition-all hover:scale-[1.01] active:scale-[0.99] mt-6"
+                                    disabled={adminLoading}
                                 >
-                                    {loading ? (
-                                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                                    ) : (
-                                        <>
-                                            Continue with WhatsApp
-                                            <ChevronRight className="w-4 h-4 ml-2" />
-                                        </>
-                                    )}
+                                    {adminLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Sign In as Admin"}
                                 </Button>
                             </form>
-                        </div>
-                    )}
-                </div>
-            </div>
+                        ) : (
+                            <div className="space-y-5 animate-in fade-in slide-in-from-left-4 duration-300">
+                                {method === 'customer' && !showOtp && (
+                                    <Button
+                                        type="button"
+                                        onClick={handleGoogleLogin}
+                                        className="w-full h-14 bg-white border-2 border-gray-100 hover:bg-gray-50 hover:border-gray-200 text-gray-700 rounded-2xl shadow-sm transition-all flex items-center justify-center gap-3 font-semibold"
+                                        disabled={loading}
+                                    >
+                                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                                            <>
+                                                <GoogleIcon />
+                                                Continue with Google
+                                            </>
+                                        )}
+                                    </Button>
+                                )}
 
-            <div className="mt-8 text-center space-y-4">
-                <p className="text-xs text-gray-400">
-                    By accessing this portal, you agree to our Terms of Service & Privacy Policy.
+                                {!showOtp && (
+                                    <div className="relative flex py-2 items-center">
+                                        <div className="flex-grow border-t border-gray-100"></div>
+                                        <span className="flex-shrink-0 mx-4 text-[10px] text-gray-400 uppercase font-bold tracking-widest">Or use phone number</span>
+                                        <div className="flex-grow border-t border-gray-100"></div>
+                                    </div>
+                                )}
+
+                                <form onSubmit={handleWhatsAppLogin} className="space-y-4">
+                                    {!showOtp ? (
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider ml-1">
+                                                {method === 'agent' ? 'Agent Mobile' : 'WhatsApp Number'}
+                                            </Label>
+                                            <div className="relative group">
+                                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
+                                                <Input
+                                                    type="tel"
+                                                    placeholder="+91 98765 43210"
+                                                    className="pl-12 h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all rounded-2xl"
+                                                    value={whatsappNumber}
+                                                    onChange={(e) => setWhatsappNumber(e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                            <p className="text-[10px] text-gray-400 ml-1 mt-2">
+                                                We will verify your number before granting access.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-1.5 slide-in-from-bottom-2 animate-in duration-300">
+                                            <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider ml-1">Enter Verification Code</Label>
+                                            <Input
+                                                type="text"
+                                                maxLength={6}
+                                                placeholder="000000"
+                                                className="h-14 bg-gray-50/50 border-gray-200 text-center text-2xl tracking-[1em] font-bold focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all rounded-2xl"
+                                                value={otpCode}
+                                                onChange={(e) => setOtpCode(e.target.value)}
+                                                required
+                                            />
+                                            <Button variant="link" size="sm" onClick={() => setShowOtp(false)} className="text-xs text-indigo-600 p-0 h-auto">
+                                                Change number
+                                            </Button>
+                                        </div>
+                                    )}
+
+                                    <Button
+                                        type="submit"
+                                        className={`w-full h-14 rounded-2xl shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] font-bold text-white mt-2 ${method === 'agent'
+                                            ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100'
+                                            : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100'
+                                            }`}
+                                        disabled={loading}
+                                    >
+                                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                                            showOtp ? "Verify & Log In" : "Get OTP via SMS"
+                                        )}
+                                    </Button>
+                                </form>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <p className="mt-8 text-center text-[10px] text-gray-400 px-8 leading-relaxed">
+                    By accessing Ryth Bazar, you agree to our <span className="underline decoration-indigo-200 text-gray-500">Terms</span> and <span className="underline decoration-indigo-200 text-gray-500">Privacy Policy</span>.
                 </p>
             </div>
+            <div id="recaptcha-container"></div>
         </div>
     );
 }
