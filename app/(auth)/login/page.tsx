@@ -396,7 +396,7 @@ function LoginForm() {
                         </div>
                     </div>
 
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Ryth Bazar</h1>
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Ryth Bazar</h1>
                     <p className="text-sm text-gray-600">Sign in to continue</p>
                 </div>
 
