@@ -9,9 +9,10 @@ import { getLeadByWhatsApp } from '@/lib/firebase/services/leadService';
 import { getAgentByWhatsApp } from '@/lib/firebase/services/agentService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/app/AuthContext';
-import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { Loader2, Phone, ShieldCheck, Mail, Lock } from 'lucide-react';
+import { ConfirmationResult, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import { Agent, Lead } from '@/lib/firebase/schema';
 
 type LoginMethod = 'customer' | 'agent' | 'admin';
 
@@ -64,7 +65,7 @@ function LoginForm() {
     // OTP State
     const [showOtp, setShowOtp] = useState(false);
     const [otpCode, setOtpCode] = useState('');
-    const [confirmationResult, setConfirmationResult] = useState<any>(null);
+    const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
 
     // Auto-redirect if already logged in
     useEffect(() => {
@@ -95,8 +96,9 @@ function LoginForm() {
 
 
     const setupRecaptcha = () => {
-        if (typeof window !== 'undefined' && !(window as any).recaptchaVerifier) {
-            (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        const win = window as unknown as { recaptchaVerifier: RecaptchaVerifier | null };
+        if (typeof window !== 'undefined' && !win.recaptchaVerifier) {
+            win.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
                 'size': 'invisible'
             });
         }
@@ -113,7 +115,7 @@ function LoginForm() {
                 await confirmationResult.confirm(otpCode);
                 // The result contains the user, but we use whatsappNumber for our DB check
 
-                let userData = null;
+                let userData: Lead | Agent | null = null;
                 if (method === 'agent') {
                     userData = await getAgentByWhatsApp(whatsappNumber);
                 } else {
@@ -144,7 +146,7 @@ function LoginForm() {
             }
 
             // SEND OTP PHASE
-            let userData = null;
+            let userData: Lead | Agent | null = null;
             if (method === 'agent') {
                 userData = await getAgentByWhatsApp(whatsappNumber);
             } else {
@@ -162,7 +164,7 @@ function LoginForm() {
             }
 
             setupRecaptcha();
-            const appVerifier = (window as any).recaptchaVerifier;
+            const appVerifier = (window as unknown as { recaptchaVerifier: RecaptchaVerifier }).recaptchaVerifier;
             const formattedNumber = whatsappNumber.startsWith('+') ? whatsappNumber : `+91${whatsappNumber}`;
 
             const confirmation = await signInWithPhoneNumber(auth, formattedNumber, appVerifier);
@@ -173,16 +175,18 @@ function LoginForm() {
                 description: `A code has been sent to ${formattedNumber}`,
             });
 
-        } catch (error: any) {
-            console.error('OTP Error:', error);
-            if ((window as any).recaptchaVerifier) {
-                (window as any).recaptchaVerifier.clear();
-                (window as any).recaptchaVerifier = null;
+        } catch (error) {
+            const err = error as Error;
+            console.error('OTP Error:', err);
+            const win = window as unknown as { recaptchaVerifier: RecaptchaVerifier | null };
+            if (win.recaptchaVerifier) {
+                win.recaptchaVerifier.clear();
+                win.recaptchaVerifier = null;
             }
             toast({
                 variant: "destructive",
                 title: "Verification Failed",
-                description: error.message || "Could not send OTP.",
+                description: err.message || "Could not send OTP.",
             });
         } finally {
             setLoading(false);
