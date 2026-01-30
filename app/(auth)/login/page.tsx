@@ -11,11 +11,11 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/app/AuthContext';
 import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
-import { Loader2, Phone, ShieldCheck, Mail, Lock, ChevronRight } from 'lucide-react';
+import { Loader2, Phone, ShieldCheck, Mail, Lock } from 'lucide-react';
 
 type LoginMethod = 'customer' | 'agent' | 'admin';
 
-import { loginWithGoogle } from '@/lib/firebase/auth';
+import { loginWithGoogle, logoutUser } from '@/lib/firebase/auth';
 import { createSession } from '@/app/actions/auth';
 import { getLeadByEmail } from '@/lib/firebase/services/leadService';
 // Wait, Lucide doesn't have Google icon, use custom SVG or text
@@ -110,8 +110,8 @@ function LoginForm() {
             if (showOtp) {
                 // VERIFY OTP PHASE
                 if (!confirmationResult) throw new Error("No confirmation result");
-                const result = await confirmationResult.confirm(otpCode);
-                const user = result.user;
+                await confirmationResult.confirm(otpCode);
+                // The result contains the user, but we use whatsappNumber for our DB check
 
                 let userData = null;
                 if (method === 'agent') {
@@ -384,7 +384,7 @@ function LoginForm() {
                                                 onChange={(e) => setOtpCode(e.target.value)}
                                                 required
                                             />
-                                            <Button variant="link" size="sm" onClick={() => setShowOtp(false)} className="text-xs text-indigo-600 p-0 h-auto">
+                                            <Button variant="ghost" size="sm" onClick={() => setShowOtp(false)} className="text-xs text-indigo-600 p-0 h-auto hover:bg-transparent hover:underline">
                                                 Change number
                                             </Button>
                                         </div>
