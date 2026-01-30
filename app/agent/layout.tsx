@@ -12,7 +12,7 @@ export default function AgentLayout({
 }: {
     children: React.ReactNode;
 }) {
-    const { user, logout } = useAuthContext();
+    const { user } = useAuthContext();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
