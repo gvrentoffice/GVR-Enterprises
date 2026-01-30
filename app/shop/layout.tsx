@@ -8,7 +8,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCart } from "@/lib/hooks/useCart";
 import { cn } from "@/lib/utils";
-import { Lead } from "@/lib/firebase/schema";
 
 export default function CustomerLayout({
     children,
@@ -109,13 +108,13 @@ function BottomNavigation({ cartSize }: { cartSize: number }) {
 
 function DropdownAction({ cartSize }: { cartSize: number }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [customer, setCustomer] = useState<Lead | null>(() => {
+    const customer = (() => {
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('customer');
             return saved ? JSON.parse(saved) : null;
         }
         return null;
-    });
+    })();
 
     const handleLogout = () => {
         localStorage.removeItem('customer');
