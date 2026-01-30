@@ -20,6 +20,11 @@ export const metadata: Metadata = {
   title: "Ryth Bazar - Unified E-Commerce Platform",
   description: "Browse products, create bookings, and track orders with Ryth Bazar",
   manifest: "/manifest.json",
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
