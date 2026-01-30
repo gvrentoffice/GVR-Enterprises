@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ShoppingBag, Search, User, LogOut, Home, ClipboardList, ShoppingCart, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCart } from "@/lib/hooks/useCart";
 import { cn } from "@/lib/utils";
+import { deleteSession } from "@/app/actions/auth";
 
 export default function CustomerLayout({
     children,
@@ -108,15 +109,21 @@ function BottomNavigation({ cartSize }: { cartSize: number }) {
 
 function DropdownAction({ cartSize }: { cartSize: number }) {
     const [isOpen, setIsOpen] = useState(false);
-    const customer = (() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('customer');
-            return saved ? JSON.parse(saved) : null;
-        }
-        return null;
-    })();
+    const [customer, setCustomer] = useState<any>(null);
 
-    const handleLogout = () => {
+    useEffect(() => {
+        const saved = localStorage.getItem('customer');
+        if (saved) {
+            try {
+                setCustomer(JSON.parse(saved));
+            } catch (error) {
+                console.error("Failed to parse customer data:", error);
+            }
+        }
+    }, []);
+
+    const handleLogout = async () => {
+        await deleteSession();
         localStorage.removeItem('customer');
         window.location.href = '/login';
     };

@@ -17,9 +17,10 @@ import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useAgent } from '@/hooks/useAgent';
 import { useAuthContext } from '@/app/AuthContext';
+import { deleteSession } from '@/app/actions/auth';
 
 export default function AgentProfilePage() {
-    const { user, logout } = useAuthContext();
+    const { user } = useAuthContext();
     const { agent } = useAgent();
 
     return (
@@ -32,7 +33,11 @@ export default function AgentProfilePage() {
                         Back to Dashboard
                     </Button>
                 </Link>
-                <Button variant="outline" onClick={() => logout()} className="text-red-500 hover:text-red-600 border-red-100 hover:bg-red-50 rounded-xl">
+                <Button variant="outline" onClick={async () => {
+                    await deleteSession();
+                    localStorage.removeItem('agent_whatsapp_session');
+                    window.location.href = '/login';
+                }} className="text-red-500 hover:text-red-600 border-red-100 hover:bg-red-50 rounded-xl">
                     <LogOut className="w-4 h-4 mr-2" />
                     Logout
                 </Button>

@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Home, Map, ShoppingCart, Users, BarChart3, User, LogOut } from 'lucide-react';
 import { useAuthContext } from '@/app/AuthContext';
 import { OfflineIndicator } from '@/components/OfflineIndicator';
+import { deleteSession } from '@/app/actions/auth';
 
 export default function AgentLayout({
     children,
@@ -104,9 +105,10 @@ export default function AgentLayout({
                                         </Link>
 
                                         <div
-                                            onClick={() => {
+                                            onClick={async () => {
+                                                await deleteSession();
                                                 localStorage.removeItem('agent_whatsapp_session');
-                                                window.location.href = '/login?role=agent';
+                                                window.location.href = '/login';
                                             }}
                                             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-600 hover:bg-red-50 transition-colors font-bold text-sm cursor-pointer"
                                         >

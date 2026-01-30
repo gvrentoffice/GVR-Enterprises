@@ -5,21 +5,16 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { getLeadByWhatsApp } from '@/lib/firebase/services/leadService';
-import { getAgentByWhatsApp } from '@/lib/firebase/services/agentService';
+import { getLeadByWhatsApp, createLeadFromGoogleSignIn, getLeadByEmail } from '@/lib/firebase/services/leadService';
+import { getAgentByWhatsApp, createAgent } from '@/lib/firebase/services/agentService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/app/AuthContext';
 import { auth } from '@/lib/firebase/config';
-import { Loader2, Phone, ShieldCheck, Mail, Lock } from 'lucide-react';
+import { Loader2, Phone, Mail, Lock } from 'lucide-react';
 import { ConfirmationResult, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
-import { Agent, Lead } from '@/lib/firebase/schema';
-
-type LoginMethod = 'customer' | 'agent' | 'admin';
-
 import { loginWithGoogle, logoutUser } from '@/lib/firebase/auth';
 import { createSession } from '@/app/actions/auth';
-import { getLeadByEmail } from '@/lib/firebase/services/leadService';
-// Wait, Lucide doesn't have Google icon, use custom SVG or text
+import { WhatsAppNumberModal } from '@/components/auth/WhatsAppNumberModal';
 
 // Helper for Google Icon
 const GoogleIcon = () => (
@@ -47,12 +42,10 @@ function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const isStaffMode = searchParams.get('mode') === 'staff';
-    const initialMethod = (searchParams.get('role') as LoginMethod) || (isStaffMode ? 'agent' : 'customer');
 
     const { toast } = useToast();
     const { login: adminLogin, loading: adminLoading } = useAuthContext();
 
-    const [method, setMethod] = useState<LoginMethod>(initialMethod);
     const [loading, setLoading] = useState(false);
 
     // WhatsApp State
@@ -66,6 +59,14 @@ function LoginForm() {
     const [showOtp, setShowOtp] = useState(false);
     const [otpCode, setOtpCode] = useState('');
     const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+
+    // WhatsApp Modal State for Google Sign-In
+    const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+    const [pendingGoogleUser, setPendingGoogleUser] = useState<{
+        email: string;
+        displayName: string;
+        photoURL?: string;
+    } | null>(null);
 
     // Auto-redirect if already logged in
     useEffect(() => {
@@ -88,13 +89,6 @@ function LoginForm() {
         }
     }, [router]);
 
-    useEffect(() => {
-        if (initialMethod) {
-            setMethod(initialMethod);
-        }
-    }, [initialMethod]);
-
-
     const setupRecaptcha = () => {
         const win = window as unknown as { recaptchaVerifier: RecaptchaVerifier | null };
         if (typeof window !== 'undefined' && !win.recaptchaVerifier) {
@@ -109,75 +103,147 @@ function LoginForm() {
         setLoading(true);
 
         try {
+            // Normalize phone number
+            const cleanNumber = whatsappNumber.replace(/\D/g, '');
+            const normalizedNumber = cleanNumber.startsWith('91') && cleanNumber.length > 10
+                ? cleanNumber.slice(2)
+                : cleanNumber;
+
+            const formattedNumber = `+91${normalizedNumber}`;
+
+            // CONSTANTS
+            const REGISTERED_AGENT = '7676739800';
+            const REGISTERED_ADMIN = '8050181994';
+
+            // 1. CHECK HARDCODED NUMBERS (Bypass OTP)
+            if (!showOtp) {
+                if (normalizedNumber === REGISTERED_ADMIN) {
+                    toast({
+                        title: "Admin Verified",
+                        description: "Logging in as Administrator...",
+                    });
+                    await createSession('admin-user-id', 'admin');
+                    localStorage.setItem('isAdminLoggedIn', 'true');
+                    router.push('/admin');
+                    setLoading(false);
+                    return;
+                }
+
+                if (normalizedNumber === REGISTERED_AGENT) {
+                    // Auto-ensure agent exists
+                    let agentData = await getAgentByWhatsApp(formattedNumber);
+                    if (!agentData) {
+                        try {
+                            const newId = await createAgent({
+                                userId: `auth-agent-${normalizedNumber}`,
+                                name: "Verified Agent",
+                                whatsappNumber: formattedNumber,
+                                employeeId: `AGT-${normalizedNumber.slice(-4)}`,
+                                territory: ["General Territory"],
+                                targetSales: 100000,
+                                status: "active",
+                                performance: { currentSales: 0, monthlySales: 0, tasksCompleted: 0, leadsGenerated: 0 }
+                            });
+                            agentData = {
+                                id: newId,
+                                userId: `auth-agent-${normalizedNumber}`,
+                                name: "Verified Agent",
+                                whatsappNumber: formattedNumber,
+                                employeeId: `AGT-${normalizedNumber.slice(-4)}`,
+                                territory: ["General Territory"],
+                                targetSales: 100000,
+                                status: "active",
+                                tenantId: 'ryth-bazar',
+                                createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
+                                updatedAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
+                            };
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    }
+
+                    if (agentData) {
+                        localStorage.setItem('agent_whatsapp_session', JSON.stringify(agentData));
+                        await createSession(agentData.id, 'agent');
+                        toast({ title: "Welcome Back", description: "Logged in as Agent" });
+                        router.push('/agent');
+                    }
+                    setLoading(false);
+                    return;
+                }
+
+                // 2. CHECK DATABASE FOR EXISTING USERS (Bypass OTP per request)
+                // Check Agent
+                let existingAgent = await getAgentByWhatsApp(formattedNumber);
+                if (!existingAgent) {
+                    existingAgent = await getAgentByWhatsApp(normalizedNumber);
+                }
+
+                if (existingAgent) {
+                    localStorage.setItem('agent_whatsapp_session', JSON.stringify(existingAgent));
+                    await createSession(existingAgent.id, 'agent');
+                    toast({ title: "Welcome Back", description: "Logged in as Agent" });
+                    router.push('/agent');
+                    setLoading(false);
+                    return;
+                }
+
+                // Check Customer
+                let existingLead = await getLeadByWhatsApp(formattedNumber);
+                if (!existingLead) {
+                    existingLead = await getLeadByWhatsApp(normalizedNumber);
+                }
+
+                if (existingLead) {
+                    localStorage.setItem('customer', JSON.stringify(existingLead));
+                    await createSession(existingLead.id, 'customer');
+                    toast({ title: "Welcome Back", description: "Logged in as Customer" });
+                    router.push('/shop');
+                    setLoading(false);
+                    return;
+                }
+            }
+
+            // 3. IF UNKNOWN -> SEND OTP (New Registration)
             if (showOtp) {
                 // VERIFY OTP PHASE
                 if (!confirmationResult) throw new Error("No confirmation result");
                 await confirmationResult.confirm(otpCode);
-                // The result contains the user, but we use whatsappNumber for our DB check
 
-                let userData: Lead | Agent | null = null;
-                if (method === 'agent') {
-                    userData = await getAgentByWhatsApp(whatsappNumber);
-                } else {
-                    userData = await getLeadByWhatsApp(whatsappNumber);
-                }
+                // Note: user is already signed in to Firebase Auth here.
 
-                if (userData) {
-                    if (method === 'agent') {
-                        localStorage.setItem('agent_whatsapp_session', JSON.stringify(userData));
-                        await createSession(userData.id, 'agent');
-                    } else {
-                        localStorage.setItem('customer', JSON.stringify(userData));
-                        await createSession(userData.id, 'customer');
-                    }
-                    toast({
-                        title: "Login Successful",
-                        description: "Identity verified. Redirecting...",
-                    });
-                    router.push(method === 'agent' ? '/agent' : '/shop');
-                } else {
-                    toast({
-                        variant: "destructive",
-                        title: "Account Missing",
-                        description: "Identity verified but no linked account found.",
-                    });
+                await createLeadFromGoogleSignIn(
+                    `user${normalizedNumber}@rythbazar.com`, // Placeholder email
+                    `User ${normalizedNumber}`, // Placeholder name
+                    formattedNumber,
+                    ""
+                );
+                // Fetch it back
+                const newLead = await getLeadByWhatsApp(formattedNumber);
+                if (newLead) {
+                    localStorage.setItem('customer', JSON.stringify(newLead));
+                    await createSession(newLead.id, 'customer');
+                    toast({ title: "Welcome!", description: "Account created successfully." });
+                    router.push('/shop');
                 }
                 return;
             }
 
             // SEND OTP PHASE
-            let userData: Lead | Agent | null = null;
-            if (method === 'agent') {
-                userData = await getAgentByWhatsApp(whatsappNumber);
-            } else {
-                userData = await getLeadByWhatsApp(whatsappNumber);
-            }
-
-            if (!userData) {
-                toast({
-                    variant: "destructive",
-                    title: "Access Denied",
-                    description: "This number is not registered. Please contact an agent.",
-                });
-                setLoading(false);
-                return;
-            }
-
             setupRecaptcha();
             const appVerifier = (window as unknown as { recaptchaVerifier: RecaptchaVerifier }).recaptchaVerifier;
-            const formattedNumber = whatsappNumber.startsWith('+') ? whatsappNumber : `+91${whatsappNumber}`;
 
             const confirmation = await signInWithPhoneNumber(auth, formattedNumber, appVerifier);
             setConfirmationResult(confirmation);
             setShowOtp(true);
             toast({
                 title: "OTP Sent",
-                description: `A code has been sent to ${formattedNumber}`,
+                description: `Verification code sent to ${formattedNumber}`,
             });
 
         } catch (error) {
             const err = error as Error;
-            console.error('OTP Error:', err);
+            console.error('Login Error:', err);
             const win = window as unknown as { recaptchaVerifier: RecaptchaVerifier | null };
             if (win.recaptchaVerifier) {
                 win.recaptchaVerifier.clear();
@@ -185,10 +251,9 @@ function LoginForm() {
             }
             toast({
                 variant: "destructive",
-                title: "Verification Failed",
-                description: err.message || "Could not send OTP.",
+                title: "Login Failed",
+                description: err.message || "Could not verify number.",
             });
-        } finally {
             setLoading(false);
         }
     };
@@ -198,12 +263,16 @@ function LoginForm() {
         try {
             const firebaseUser = await loginWithGoogle();
             const email = firebaseUser.email;
+            const displayName = firebaseUser.displayName || 'Customer';
+            const photoURL = firebaseUser.photoURL || undefined;
 
             if (!email) throw new Error("No email provided by Google");
 
+            // Check if customer already exists
             const customer = await getLeadByEmail(email);
 
             if (customer) {
+                // Existing customer - log them in
                 localStorage.setItem('customer', JSON.stringify(customer));
                 await createSession(customer.id, 'customer');
                 toast({
@@ -212,12 +281,9 @@ function LoginForm() {
                 });
                 router.push('/shop');
             } else {
-                toast({
-                    variant: "destructive",
-                    title: "Account Not Onboarded",
-                    description: `The email ${email} is not linked to any shop. Please contact an agent.`,
-                });
-                await logoutUser(); // Clean up if not onboarded
+                // New customer - collect WhatsApp number
+                setPendingGoogleUser({ email, displayName, photoURL });
+                setShowWhatsAppModal(true);
             }
         } catch (error) {
             console.error('Google Login Error:', error);
@@ -229,6 +295,63 @@ function LoginForm() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleWhatsAppSubmit = async (whatsappNumber: string) => {
+        if (!pendingGoogleUser) return;
+
+        setLoading(true);
+        try {
+            // Normalize WhatsApp number to +91XXXXXXXXXX format
+            const cleanNumber = whatsappNumber.replace(/\D/g, '');
+            const normalizedNumber = cleanNumber.startsWith('91')
+                ? `+${cleanNumber}`
+                : `+91${cleanNumber}`;
+
+            // Create new lead with pending approval
+            await createLeadFromGoogleSignIn(
+                pendingGoogleUser.email,
+                pendingGoogleUser.displayName,
+                normalizedNumber,
+                pendingGoogleUser.photoURL
+            );
+
+            // Fetch the newly created lead
+            const newCustomer = await getLeadByEmail(pendingGoogleUser.email);
+
+            if (newCustomer) {
+                localStorage.setItem('customer', JSON.stringify(newCustomer));
+                await createSession(newCustomer.id, 'customer');
+
+                setShowWhatsAppModal(false);
+                setPendingGoogleUser(null);
+
+                toast({
+                    title: "Registration Successful",
+                    description: "You can browse products. Dealer prices will be visible after approval.",
+                });
+                router.push('/shop');
+            }
+        } catch (error) {
+            console.error('WhatsApp submission error:', error);
+            toast({
+                variant: "destructive",
+                title: "Registration Failed",
+                description: "Could not complete registration. Please try again.",
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleWhatsAppCancel = async () => {
+        setShowWhatsAppModal(false);
+        setPendingGoogleUser(null);
+        await logoutUser(); // Sign out from Google
+        toast({
+            title: "Registration Cancelled",
+            description: "You have been signed out.",
+        });
     };
 
     const handleAdminLogin = async (e: React.FormEvent) => {
@@ -255,66 +378,66 @@ function LoginForm() {
     };
 
     return (
-        <div className="min-h-screen flex flex-col justify-center bg-gray-50/50">
-            <div className="w-full max-w-[420px] mx-auto px-4 py-8">
-                <div className="text-center mb-6">
-                    <div className="w-14 h-14 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-xl shadow-indigo-100">
-                        <ShieldCheck className="w-7 h-7 text-white" />
+        <div className="min-h-screen flex flex-col justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-red-50">
+            <div className="w-full max-w-[440px] mx-auto px-4 py-8">
+                {/* Logo Section */}
+                <div className="text-center mb-8">
+                    <div className="relative w-32 h-32 mx-auto mb-6">
+                        {/* Outer glow */}
+                        <div className="absolute inset-0 bg-gradient-to-br from-amber-400/40 to-orange-500/40 rounded-[28px] blur-2xl"></div>
+
+                        {/* Logo container */}
+                        <div className="relative w-32 h-32 bg-white rounded-[28px] overflow-hidden shadow-2xl shadow-orange-500/30 ring-4 ring-white/50 transform hover:scale-105 transition-transform duration-300">
+                            <img
+                                src="/apple-icon.png"
+                                alt="Ryth Bazar Logo"
+                                className="w-full h-full object-cover"
+                            />
+                        </div>
                     </div>
-                    <h1 className="text-2xl font-bold text-gray-900 mb-1">Ryth Bazar</h1>
-                    <p className="text-sm text-gray-500">Secure Access Portal</p>
+
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Ryth Bazar</h1>
+                    <p className="text-sm text-gray-600">Sign in to continue</p>
                 </div>
 
-                <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 p-5 md:p-8">
-                    {/* Method Switcher */}
-                    <div className="flex bg-gray-100/80 p-1 rounded-2xl mb-6 relative">
-                        <div
-                            className="absolute h-[calc(100%-8px)] top-1 bg-white rounded-xl shadow-sm transition-all duration-300 ease-out"
-                            style={{
-                                width: '33.33%',
-                                left: method === 'customer' ? '4px' : method === 'agent' ? '33.33%' : 'calc(66.66% - 4px)'
-                            }}
-                        />
-                        {(['customer', 'agent', 'admin'] as const).map((m) => (
-                            <button
-                                key={m}
-                                onClick={() => {
-                                    setMethod(m);
-                                    setShowOtp(false);
-                                }}
-                                className={`flex-1 relative z-10 py-2.5 text-xs font-semibold transition-colors duration-200 capitalize ${method === m ? 'text-gray-900' : 'text-gray-400 hover:text-gray-600'
-                                    }`}
-                            >
-                                {m}
-                            </button>
-                        ))}
-                    </div>
+                {/* Login Card */}
+                <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 p-6 md:p-8 space-y-6">
 
-                    <div className="min-h-[320px]">
-                        {method === 'admin' ? (
-                            <form onSubmit={handleAdminLogin} className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider ml-1">Email Address</Label>
+                    {isStaffMode ? (
+                        /* Admin Login */
+                        <div className="space-y-6">
+                            <div className="text-center">
+                                <h2 className="text-xl font-bold text-gray-900 mb-2">Staff Login</h2>
+                                <p className="text-sm text-gray-600">Admin and Agent access only</p>
+                            </div>
+
+                            <form onSubmit={handleAdminLogin} className="space-y-4">
+                                <div className="space-y-3">
+                                    <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wider ml-1">
+                                        Email Address
+                                    </Label>
                                     <div className="relative group">
-                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
+                                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-gray-900 transition-colors" />
                                         <Input
                                             type="email"
                                             placeholder="admin@rythbazar.com"
-                                            className="pl-12 h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all rounded-2xl"
+                                            className="pl-12 h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-gray-100 transition-all rounded-2xl text-base"
                                             value={email}
                                             onChange={(e) => setEmail(e.target.value)}
                                             required
                                         />
                                     </div>
                                 </div>
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider ml-1">Password</Label>
+                                <div className="space-y-3">
+                                    <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wider ml-1">
+                                        Password
+                                    </Label>
                                     <div className="relative group">
-                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
+                                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-gray-900 transition-colors" />
                                         <Input
                                             type="password"
                                             placeholder="••••••••"
-                                            className="pl-12 h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all rounded-2xl"
+                                            className="pl-12 h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-gray-100 transition-all rounded-2xl text-base"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
                                             required
@@ -323,100 +446,157 @@ function LoginForm() {
                                 </div>
                                 <Button
                                     type="submit"
-                                    className="w-full h-14 bg-gray-900 hover:bg-gray-800 text-white rounded-2xl shadow-lg shadow-gray-200 transition-all hover:scale-[1.01] active:scale-[0.99] mt-6"
+                                    className="w-full h-14 bg-gray-900 hover:bg-gray-800 text-white rounded-2xl shadow-lg shadow-gray-200 transition-all hover:scale-[1.02] active:scale-[0.98] font-semibold text-base"
                                     disabled={adminLoading}
                                 >
                                     {adminLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Sign In as Admin"}
                                 </Button>
                             </form>
-                        ) : (
-                            <div className="space-y-5 animate-in fade-in slide-in-from-left-4 duration-300">
-                                {method === 'customer' && !showOtp && (
-                                    <Button
-                                        type="button"
-                                        onClick={handleGoogleLogin}
-                                        className="w-full h-14 bg-white border-2 border-gray-100 hover:bg-gray-50 hover:border-gray-200 text-gray-700 rounded-2xl shadow-sm transition-all flex items-center justify-center gap-3 font-semibold"
-                                        disabled={loading}
-                                    >
-                                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                                            <>
-                                                <GoogleIcon />
-                                                Continue with Google
-                                            </>
-                                        )}
-                                    </Button>
-                                )}
-
-                                {!showOtp && (
-                                    <div className="relative flex py-2 items-center">
-                                        <div className="flex-grow border-t border-gray-100"></div>
-                                        <span className="flex-shrink-0 mx-4 text-[10px] text-gray-400 uppercase font-bold tracking-widest">Or use phone number</span>
-                                        <div className="flex-grow border-t border-gray-100"></div>
-                                    </div>
-                                )}
+                            {/* Back to Customer Login */}
+                            <div className="pt-4 border-t border-gray-100">
+                                <button
+                                    type="button"
+                                    onClick={() => router.push('/login')}
+                                    className="w-full text-center text-sm text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                                >
+                                    ← Back to Customer Login
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        /* Unified Login content */
+                        <>
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
+                                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sign in with Mobile Number</span>
+                                    <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
+                                </div>
 
                                 <form onSubmit={handleWhatsAppLogin} className="space-y-4">
                                     {!showOtp ? (
-                                        <div className="space-y-1.5">
-                                            <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider ml-1">
-                                                {method === 'agent' ? 'Agent Mobile' : 'WhatsApp Number'}
+                                        <div className="space-y-3">
+                                            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wider ml-1">
+                                                Mobile Number
                                             </Label>
                                             <div className="relative group">
-                                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-indigo-600 transition-colors" />
+                                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-emerald-600 transition-colors" />
                                                 <Input
                                                     type="tel"
                                                     placeholder="+91 98765 43210"
-                                                    className="pl-12 h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all rounded-2xl"
+                                                    className="pl-12 h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-emerald-100 transition-all rounded-2xl text-base"
                                                     value={whatsappNumber}
                                                     onChange={(e) => setWhatsappNumber(e.target.value)}
                                                     required
                                                 />
                                             </div>
-                                            <p className="text-[10px] text-gray-400 ml-1 mt-2">
-                                                We will verify your number before granting access.
+                                            <p className="text-xs text-gray-500 ml-1">
+                                                We'll detect your account type automatically
                                             </p>
                                         </div>
                                     ) : (
-                                        <div className="space-y-1.5 slide-in-from-bottom-2 animate-in duration-300">
-                                            <Label className="text-xs font-semibold text-gray-600 uppercase tracking-wider ml-1">Enter Verification Code</Label>
+                                        <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                            <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wider ml-1">
+                                                Enter Verification Code
+                                            </Label>
                                             <Input
                                                 type="text"
                                                 maxLength={6}
                                                 placeholder="000000"
-                                                className="h-14 bg-gray-50/50 border-gray-200 text-center text-2xl tracking-[1em] font-bold focus:bg-white focus:ring-4 focus:ring-indigo-100 transition-all rounded-2xl"
+                                                className="h-16 bg-gray-50/50 border-gray-200 text-center text-3xl tracking-[0.5em] font-bold focus:bg-white focus:ring-4 focus:ring-emerald-100 transition-all rounded-2xl"
                                                 value={otpCode}
                                                 onChange={(e) => setOtpCode(e.target.value)}
                                                 required
                                             />
-                                            <Button variant="ghost" size="sm" onClick={() => setShowOtp(false)} className="text-xs text-indigo-600 p-0 h-auto hover:bg-transparent hover:underline">
-                                                Change number
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                type="button"
+                                                onClick={() => setShowOtp(false)}
+                                                className="text-xs text-emerald-600 p-0 h-auto hover:bg-transparent hover:underline"
+                                            >
+                                                ← Change number
                                             </Button>
                                         </div>
                                     )}
 
                                     <Button
                                         type="submit"
-                                        className={`w-full h-14 rounded-2xl shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] font-bold text-white mt-2 ${method === 'agent'
-                                            ? 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-100'
-                                            : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-100'
-                                            }`}
+                                        className="w-full h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-lg shadow-emerald-100 transition-all hover:scale-[1.02] active:scale-[0.98] font-semibold text-base"
                                         disabled={loading}
                                     >
-                                        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
-                                            showOtp ? "Verify & Log In" : "Get OTP via SMS"
+                                        {loading ? (
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                        ) : showOtp ? (
+                                            "Verify & Sign In"
+                                        ) : (
+                                            "Continue"
                                         )}
                                     </Button>
                                 </form>
                             </div>
-                        )}
-                    </div>
+
+                            {/* Divider */}
+                            {!showOtp && (
+                                <div className="relative flex py-3 items-center">
+                                    <div className="flex-grow border-t border-gray-200"></div>
+                                    <span className="flex-shrink-0 mx-4 text-xs text-gray-400 uppercase font-semibold tracking-wider">Or</span>
+                                    <div className="flex-grow border-t border-gray-200"></div>
+                                </div>
+                            )}
+
+                            {/* Google Sign-In Section */}
+                            {!showOtp && (
+                                <div className="space-y-4">
+                                    <Button
+                                        type="button"
+                                        onClick={handleGoogleLogin}
+                                        className="w-full h-14 bg-white border-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-gray-700 rounded-2xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3 font-semibold text-base"
+                                        disabled={loading}
+                                    >
+                                        {loading ? (
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                        ) : (
+                                            <>
+                                                <GoogleIcon />
+                                                Continue with Google
+                                            </>
+                                        )}
+                                    </Button>
+
+                                    <p className="text-xs text-center text-gray-500 leading-relaxed">
+                                        By signing in, you agree to our Terms of Service and Privacy Policy
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Staff Login Link */}
+                            {!showOtp && (
+                                <div className="pt-4 border-t border-gray-100">
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => router.push('/login?mode=staff')}
+                                        className="w-full text-center text-sm text-gray-400 hover:text-gray-600 font-medium transition-colors"
+                                    >
+                                        Staff Login
+                                    </Button>
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
 
-                <p className="mt-8 text-center text-[10px] text-gray-400 px-8 leading-relaxed">
-                    By accessing Ryth Bazar, you agree to our <span className="underline decoration-indigo-200 text-gray-500">Terms</span> and <span className="underline decoration-indigo-200 text-gray-500">Privacy Policy</span>.
-                </p>
+                {/* reCAPTCHA */}
+                <div id="recaptcha-container"></div>
+
+                {/* WhatsApp Number Modal for Google Sign-In */}
+                <WhatsAppNumberModal
+                    isOpen={showWhatsAppModal}
+                    onSubmit={handleWhatsAppSubmit}
+                    onCancel={handleWhatsAppCancel}
+                    loading={loading}
+                />
             </div>
-            <div id="recaptcha-container"></div>
         </div>
     );
 }

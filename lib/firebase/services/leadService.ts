@@ -242,3 +242,49 @@ export async function getLeadByEmail(email: string): Promise<Lead | null> {
         return null;
     }
 }
+
+/**
+ * Create lead from Google Sign-In
+ * Creates a new customer with pending approval status
+ */
+export async function createLeadFromGoogleSignIn(
+    email: string,
+    displayName: string,
+    whatsappNumber: string,
+    photoURL?: string
+): Promise<string> {
+    try {
+        const leadId = doc(collection(db, 'leads')).id;
+        const now = Timestamp.now();
+
+        const lead: Lead = {
+            id: leadId,
+            tenantId: TENANT_ID,
+            shopName: displayName || 'New Customer',
+            ownerName: displayName || 'Customer',
+            whatsappNumber: whatsappNumber,
+            email: email,
+            primaryAddress: {
+                street: '',
+                city: '',
+                state: '',
+                pincode: '',
+            },
+            shopImageUrl: photoURL || '',
+            visitingCardUrl: '',
+            agentId: 'google-signup', // Special marker for Google sign-ups
+            agentName: 'Self Registration',
+            status: 'pending',
+            priceAccessApproved: false, // Not approved by default
+            createdAt: now,
+            updatedAt: now,
+        };
+
+        await setDoc(doc(db, 'leads', leadId), lead);
+        return leadId;
+    } catch (error) {
+        console.error('Error creating lead from Google Sign-In:', error);
+        throw error;
+    }
+}
+

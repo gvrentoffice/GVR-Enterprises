@@ -20,6 +20,12 @@ export function middleware(request: NextRequest) {
                 return NextResponse.redirect(new URL('/shop', request.url));
             }
         }
+
+        // If visiting root and not logged in, redirect to login
+        if (pathname === '/' && !session) {
+            return NextResponse.redirect(new URL('/login', request.url));
+        }
+
         return NextResponse.next();
     }
 
@@ -49,5 +55,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ['/admin/:path*', '/agent/:path*', '/shop/:path*', '/login', '/register'],
+    matcher: ['/', '/admin/:path*', '/agent/:path*', '/shop/:path*', '/login', '/register'],
 };

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, TrendingUp, Users, ShoppingBag, User, LogOut, Package, ClipboardList, Map } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { deleteSession } from '@/app/actions/auth';
 
 const navItems = [
     { label: 'Dash', icon: LayoutDashboard, href: '/admin' },
@@ -82,9 +83,11 @@ export default function AdminLayout({
                             </div>
                         </div>
                         <button
-                            onClick={() => {
+                            onClick={async () => {
+                                await deleteSession();
                                 localStorage.removeItem('admin_session');
-                                window.location.href = '/login?role=admin';
+                                localStorage.removeItem('isAdminLoggedIn');
+                                window.location.href = '/login';
                             }}
                             className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-red-100"
                         >
@@ -121,9 +124,11 @@ export default function AdminLayout({
                         </Link>
                         <button
                             className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-red-400 hover:bg-red-400/10 rounded-2xl transition-colors"
-                            onClick={() => {
+                            onClick={async () => {
+                                await deleteSession();
                                 localStorage.removeItem('admin_session');
-                                window.location.href = '/login?role=admin';
+                                localStorage.removeItem('isAdminLoggedIn');
+                                window.location.href = '/login';
                             }}
                         >
                             <LogOut className="w-4 h-4" />
