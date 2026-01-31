@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ProductDetail } from "@/components/products/product-detail";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, AlertCircle } from "lucide-react";
-import { useProduct } from "@/hooks/use-mock-products";
+import { useProduct } from "@/hooks/useProducts";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {

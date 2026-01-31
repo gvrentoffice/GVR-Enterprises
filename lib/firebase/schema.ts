@@ -145,6 +145,20 @@ export interface Agent {
     checkOut?: Timestamp;
   };
   status: 'active' | 'on_leave' | 'inactive';
+  // Security
+  passwordHash?: string;
+  webAuthnCredentials?: {
+    id: string;
+    publicKey: string;
+    counter: number;
+    transports?: string[];
+  }[];
+  authPreferences?: {
+    enablePasswordLogin: boolean;
+    enableBiometricLogin: boolean;
+  };
+  recoveryEmail?: string;
+  isEmailVerified?: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -190,6 +204,20 @@ export interface Lead {
   agentName: string;
   status: 'pending' | 'approved' | 'rejected';
   priceAccessApproved: boolean;
+  // Security
+  passwordHash?: string;
+  webAuthnCredentials?: {
+    id: string;
+    publicKey: string;
+    counter: number;
+    transports?: string[];
+  }[];
+  authPreferences?: {
+    enablePasswordLogin: boolean;
+    enableBiometricLogin: boolean;
+  };
+  recoveryEmail?: string;
+  isEmailVerified?: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

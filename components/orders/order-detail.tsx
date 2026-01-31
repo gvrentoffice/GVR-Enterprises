@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Separator } from "@/components/ui/separator";
-import { Order } from "@/lib/demo-data";
+import { Order } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface OrderDetailProps {

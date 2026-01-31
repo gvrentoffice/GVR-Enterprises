@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { getLeadByWhatsApp, createLeadFromGoogleSignIn, getLeadByEmail } from '@/lib/firebase/services/leadService';
-import { getAgentByWhatsApp, createAgent } from '@/lib/firebase/services/agentService';
+import { getAgentByWhatsApp } from '@/lib/firebase/services/agentService';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/app/AuthContext';
 import { auth } from '@/lib/firebase/config';
@@ -15,6 +15,9 @@ import { ConfirmationResult, RecaptchaVerifier, signInWithPhoneNumber } from 'fi
 import { loginWithGoogle, logoutUser } from '@/lib/firebase/auth';
 import { createSession } from '@/app/actions/auth';
 import { WhatsAppNumberModal } from '@/components/auth/WhatsAppNumberModal';
+import { SecuritySetupModal } from '@/components/auth/SecuritySetupModal';
+import { checkAuthMethodsAction, verifyPasswordAction, getWebAuthnLoginOptionsAction, verifyWebAuthnLoginAction } from '@/app/actions/security';
+import { startAuthentication } from '@simplewebauthn/browser';
 
 // Helper for Google Icon
 const GoogleIcon = () => (
@@ -48,17 +51,38 @@ function LoginForm() {
 
     const [loading, setLoading] = useState(false);
 
-    // WhatsApp State
+    // Auth State
+    const [authStage, setAuthStage] = useState<'phone' | 'password' | 'otp' | 'otp-verify'>('phone');
+    // unused: const [authMethod, setAuthMethod] = useState<'password' | 'biometric'>('password');
+    const [userAuthData, setUserAuthData] = useState<{
+        userId: string;
+        userType: 'agent' | 'customer';
+        hasPassword?: boolean;
+        hasBiometrics?: boolean;
+        authPreferences?: any;
+    } | null>(null);
+
+    // Inputs
     const [whatsappNumber, setWhatsappNumber] = useState('');
-
-    // Admin State
-    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-
-    // OTP State
-    const [showOtp, setShowOtp] = useState(false);
     const [otpCode, setOtpCode] = useState('');
+    const [email, setEmail] = useState(''); // Added for Admin Login
+
     const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+
+    // Security Setup Modal State
+    const [showSecurityModal, setShowSecurityModal] = useState(false);
+    const [securityModalData, setSecurityModalData] = useState<{
+        userId: string;
+        userType: 'agent' | 'customer';
+        userName: string;
+        missingFeatures: {
+            password: boolean;
+            recoveryEmail: boolean;
+            biometrics: boolean;
+        }
+    } | null>(null);
+
 
     // WhatsApp Modal State for Google Sign-In
     const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
@@ -98,7 +122,7 @@ function LoginForm() {
         }
     };
 
-    const handleWhatsAppLogin = async (e: React.FormEvent) => {
+    const handlePhoneSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
@@ -108,141 +132,79 @@ function LoginForm() {
             const normalizedNumber = cleanNumber.startsWith('91') && cleanNumber.length > 10
                 ? cleanNumber.slice(2)
                 : cleanNumber;
-
             const formattedNumber = `+91${normalizedNumber}`;
 
             // CONSTANTS
-            const REGISTERED_AGENT = '7676739800';
             const REGISTERED_ADMIN = '8050181994';
 
-            // 1. CHECK HARDCODED NUMBERS (Bypass OTP)
-            if (!showOtp) {
-                if (normalizedNumber === REGISTERED_ADMIN) {
-                    toast({
-                        title: "Admin Verified",
-                        description: "Logging in as Administrator...",
-                    });
-                    await createSession('admin-user-id', 'admin');
-                    localStorage.setItem('isAdminLoggedIn', 'true');
-                    router.push('/admin');
-                    setLoading(false);
-                    return;
-                }
-
-                if (normalizedNumber === REGISTERED_AGENT) {
-                    // Auto-ensure agent exists
-                    let agentData = await getAgentByWhatsApp(formattedNumber);
-                    if (!agentData) {
-                        try {
-                            const newId = await createAgent({
-                                userId: `auth-agent-${normalizedNumber}`,
-                                name: "Verified Agent",
-                                whatsappNumber: formattedNumber,
-                                employeeId: `AGT-${normalizedNumber.slice(-4)}`,
-                                territory: ["General Territory"],
-                                targetSales: 100000,
-                                status: "active",
-                                performance: { currentSales: 0, monthlySales: 0, tasksCompleted: 0, leadsGenerated: 0 }
-                            });
-                            agentData = {
-                                id: newId,
-                                userId: `auth-agent-${normalizedNumber}`,
-                                name: "Verified Agent",
-                                whatsappNumber: formattedNumber,
-                                employeeId: `AGT-${normalizedNumber.slice(-4)}`,
-                                territory: ["General Territory"],
-                                targetSales: 100000,
-                                status: "active",
-                                tenantId: 'ryth-bazar',
-                                createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-                                updatedAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-                            };
-                        } catch (e) {
-                            console.error(e);
-                        }
-                    }
-
-                    if (agentData) {
-                        localStorage.setItem('agent_whatsapp_session', JSON.stringify(agentData));
-                        await createSession(agentData.id, 'agent');
-                        toast({ title: "Welcome Back", description: "Logged in as Agent" });
-                        router.push('/agent');
-                    }
-                    setLoading(false);
-                    return;
-                }
-
-                // 2. [REMOVED] CHECK DATABASE FOR EXISTING USERS (Bypass OTP)
-                // We now enforce OTP for all WhatsApp logins to verify ownership.
-                // Flow continues to Step 3 (Send OTP).
-            }
-
-            // 3. IF UNKNOWN -> SEND OTP (New Registration)
-            if (showOtp) {
-                // VERIFY OTP PHASE
-                if (!confirmationResult) throw new Error("No confirmation result");
-                await confirmationResult.confirm(otpCode);
-
-                // OTP Verified! Now check if user exists in DB
-
-                // Check Agent
-                let existingAgent = await getAgentByWhatsApp(formattedNumber);
-                if (!existingAgent) existingAgent = await getAgentByWhatsApp(normalizedNumber);
-
-                if (existingAgent) {
-                    localStorage.setItem('agent_whatsapp_session', JSON.stringify(existingAgent));
-                    await createSession(existingAgent.id, 'agent');
-                    toast({ title: "Welcome Back", description: "Logged in as Agent" });
-                    router.push('/agent');
-                    return;
-                }
-
-                // Check Customer
-                let existingLead = await getLeadByWhatsApp(formattedNumber);
-                if (!existingLead) existingLead = await getLeadByWhatsApp(normalizedNumber);
-
-                if (existingLead) {
-                    localStorage.setItem('customer', JSON.stringify(existingLead));
-                    await createSession(existingLead.id, 'customer');
-                    toast({ title: "Welcome Back", description: "Logged in as Customer" });
-                    router.push('/shop');
-                    return;
-                }
-
-                // If New User -> Create Account
-                await createLeadFromGoogleSignIn(
-                    `user${normalizedNumber}@rythbazar.com`, // Placeholder email
-                    `User ${normalizedNumber}`, // Placeholder name
-                    formattedNumber,
-                    ""
-                );
-                // Fetch it back
-                const newLead = await getLeadByWhatsApp(formattedNumber);
-                if (newLead) {
-                    localStorage.setItem('customer', JSON.stringify(newLead));
-                    await createSession(newLead.id, 'customer');
-                    toast({ title: "Welcome!", description: "Account created successfully." });
-                    router.push('/shop');
-                }
+            // 1. CHECK HARDCODED ADMIN
+            if (normalizedNumber === REGISTERED_ADMIN) {
+                toast({
+                    title: "Admin Verified",
+                    description: "Logging in as Administrator...",
+                });
+                await createSession('admin-user-id', 'admin');
+                localStorage.setItem('isAdminLoggedIn', 'true');
+                router.push('/admin');
+                setLoading(false);
                 return;
             }
 
-            // SEND OTP PHASE
+            // 2. CHECK USER AUTH METHODS via Server Action
+            const methods = await checkAuthMethodsAction(formattedNumber);
+
+            if (methods.exists && methods.userId && methods.userType) {
+                // Determine preferred method
+                const preferences = methods.authPreferences || {};
+                const canUsePassword = methods.hasPassword && preferences.enablePasswordLogin !== false;
+                // const canUseBiometrics = methods.hasBiometrics && preferences.enableBiometricLogin !== false;
+
+                setUserAuthData({
+                    userId: methods.userId,
+                    userType: methods.userType,
+                    hasPassword: methods.hasPassword,
+                    hasBiometrics: methods.hasBiometrics,
+                    authPreferences: methods.authPreferences
+                });
+
+                if (canUsePassword) {
+                    setAuthStage('password');
+                    setLoading(false);
+                    return;
+                }
+
+                // If biometric only, maybe auto-trigger? For now, fallback to OTP if no password
+            }
+
+            // 3. FALLBACK TO OTP (New User or No Password)
+            await sendOtp(formattedNumber);
+
+        } catch (error) {
+            console.error('Phone Check Error:', error);
+            toast({ variant: "destructive", title: "Error", description: "Something went wrong. Please try again." });
+            setLoading(false);
+        }
+    };
+
+    const sendOtp = async (formattedNumber: string) => {
+        try {
             setupRecaptcha();
             const appVerifier = (window as unknown as { recaptchaVerifier: RecaptchaVerifier }).recaptchaVerifier;
 
             const confirmation = await signInWithPhoneNumber(auth, formattedNumber, appVerifier);
             setConfirmationResult(confirmation);
-            setShowOtp(true);
+            setAuthStage('otp-verify');
             toast({
                 title: "OTP Sent",
                 description: `Verification code sent to ${formattedNumber}`,
             });
-
-        } catch (error) {
-            const err = error as Error;
-            console.error('Login Error:', err);
-
+        } catch (error: any) {
+            toast({
+                variant: "destructive",
+                title: "Login Failed",
+                description: error.message || "Could not verify number.",
+            });
+            // Clear recaptcha
             try {
                 const win = window as unknown as { recaptchaVerifier: RecaptchaVerifier | null };
                 if (win?.recaptchaVerifier) {
@@ -250,18 +212,178 @@ function LoginForm() {
                     win.recaptchaVerifier = null;
                 }
             } catch (e) {
-                console.warn("Error clearing recaptcha:", e);
+                console.warn("Recaptcha clear error", e);
+            }
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    const handlePasswordLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!userAuthData) return;
+        setLoading(true);
+
+        try {
+            const isValid = await verifyPasswordAction(userAuthData.userId, userAuthData.userType, password);
+            if (isValid) {
+                await handleSuccessfulLogin(userAuthData.userId, userAuthData.userType);
+            } else {
+                toast({ variant: "destructive", title: "Incorrect Password", description: "Please try again or login with OTP." });
+            }
+        } catch (error) {
+            console.error("Password Login Error", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not verify password." });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleBiometricLogin = async () => {
+        if (!userAuthData) return;
+        setLoading(true);
+        try {
+            const options = await getWebAuthnLoginOptionsAction(userAuthData.userId, userAuthData.userType);
+            const asseResp = await startAuthentication(options);
+
+            const verification = await verifyWebAuthnLoginAction(
+                userAuthData.userId,
+                userAuthData.userType,
+                asseResp,
+                options.challenge
+            );
+
+            if (verification) {
+                await handleSuccessfulLogin(userAuthData.userId, userAuthData.userType);
+            } else {
+                toast({ variant: "destructive", title: "Failed", description: "Biometric verification failed." });
+            }
+        } catch (error) {
+            console.error("Biometric Error", error);
+            toast({ variant: "destructive", title: "Error", description: "Biometric login failed." });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleOtpVerify = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            if (!confirmationResult) throw new Error("No confirmation result");
+            await confirmationResult.confirm(otpCode);
+
+            // Fetch user to confirm existence/create new
+            // Normalize phone number
+            const cleanNumber = whatsappNumber.replace(/\D/g, '');
+            const normalizedNumber = cleanNumber.startsWith('91') && cleanNumber.length > 10
+                ? cleanNumber.slice(2)
+                : cleanNumber;
+            const formattedNumber = `+91${normalizedNumber}`;
+
+            // Check Agent
+            let existingAgent = await getAgentByWhatsApp(formattedNumber);
+            if (!existingAgent) existingAgent = await getAgentByWhatsApp(normalizedNumber);
+
+            if (existingAgent) {
+                await handleSuccessfulLogin(existingAgent.id, 'agent', existingAgent);
+                return;
             }
 
+            // Check Customer
+            let existingLead = await getLeadByWhatsApp(formattedNumber);
+            if (!existingLead) existingLead = await getLeadByWhatsApp(normalizedNumber);
+
+            if (existingLead) {
+                await handleSuccessfulLogin(existingLead.id, 'customer', existingLead);
+                return;
+            }
+
+            // New User
+            await createLeadFromGoogleSignIn(
+                `user${normalizedNumber}@rythbazar.com`,
+                `User ${normalizedNumber}`,
+                formattedNumber,
+                ""
+            );
+            const newLead = await getLeadByWhatsApp(formattedNumber);
+            if (newLead) {
+                await handleSuccessfulLogin(newLead.id, 'customer', newLead);
+            }
+
+        } catch (error: any) {
             toast({
                 variant: "destructive",
-                title: "Login Failed",
-                description: err.message || "Could not verify number.",
+                title: "Invalid Code",
+                description: "The verification code is incorrect.",
             });
         } finally {
             setLoading(false);
         }
     };
+
+    const handleSuccessfulLogin = async (userId: string, role: string, userData?: any) => {
+        // Create Session
+        await createSession(userId, role);
+
+        let finalUserData = userData;
+        const storageData = finalUserData || { id: userId };
+        if (role === 'agent') {
+            localStorage.setItem('agent_whatsapp_session', JSON.stringify(storageData));
+        } else {
+            localStorage.setItem('customer', JSON.stringify(storageData));
+        }
+
+        // --- CHECK SECURITY STATUS ---
+        let checkNumber = whatsappNumber;
+        if (!checkNumber && finalUserData?.whatsappNumber) checkNumber = finalUserData.whatsappNumber;
+
+        if (checkNumber) {
+            const cleanNumber = checkNumber.replace(/\D/g, '');
+            const formattedNumber = `+91${cleanNumber.startsWith('91') ? cleanNumber.slice(2) : cleanNumber}`;
+
+            try {
+                const methods = await checkAuthMethodsAction(formattedNumber);
+
+                const missingPassword = !methods.hasPassword;
+                const missingBiometrics = !methods.hasBiometrics;
+                const missingRecovery = !methods.recoveryEmail;
+
+                // If any feature is missing, show the modal
+                if (missingPassword || missingBiometrics || missingRecovery) {
+                    setSecurityModalData({
+                        userId: userId,
+                        userType: role as 'agent' | 'customer',
+                        userName: finalUserData?.shopName || finalUserData?.name || 'User',
+                        missingFeatures: {
+                            password: missingPassword,
+                            recoveryEmail: missingRecovery,
+                            biometrics: missingBiometrics
+                        }
+                    });
+                    setShowSecurityModal(true);
+                    // Don't route yet
+                    return;
+                }
+
+            } catch (e) {
+                console.warn("Failed to check security status on login", e);
+            }
+        }
+
+        toast({ title: "Login Successful", description: `Welcome back!` });
+
+        if (role === 'agent') router.push('/agent');
+        else router.push('/shop');
+    }
+
+    const handleSecurityModalClose = () => {
+        setShowSecurityModal(false);
+        // Redirect after modal close
+        const role = securityModalData?.userType;
+        if (role === 'agent') router.push('/agent');
+        else router.push('/shop');
+    }
 
     const handleGoogleLogin = async () => {
         setLoading(true);
@@ -278,13 +400,8 @@ function LoginForm() {
 
             if (customer) {
                 // Existing customer - log them in
-                localStorage.setItem('customer', JSON.stringify(customer));
-                await createSession(customer.id, 'customer');
-                toast({
-                    title: "Login Successful",
-                    description: `Welcome back, ${customer.shopName}!`,
-                });
-                router.push('/shop');
+                // Use unified success handler which checks for security setup
+                await handleSuccessfulLogin(customer.id, 'customer', customer);
             } else {
                 // New customer - collect WhatsApp number
                 setPendingGoogleUser({ email, displayName, photoURL });
@@ -325,17 +442,11 @@ function LoginForm() {
             const newCustomer = await getLeadByEmail(pendingGoogleUser.email);
 
             if (newCustomer) {
-                localStorage.setItem('customer', JSON.stringify(newCustomer));
-                await createSession(newCustomer.id, 'customer');
-
                 setShowWhatsAppModal(false);
                 setPendingGoogleUser(null);
 
-                toast({
-                    title: "Registration Successful",
-                    description: "You can browse products. Dealer prices will be visible after approval.",
-                });
-                router.push('/shop');
+                // Use unified success handler
+                await handleSuccessfulLogin(newCustomer.id, 'customer', newCustomer);
             }
         } catch (error) {
             console.error('WhatsApp submission error:', error);
@@ -474,14 +585,18 @@ function LoginForm() {
                             <div className="space-y-4">
                                 <div className="flex items-center gap-2 mb-4">
                                     <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
-                                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sign in with Mobile Number</span>
+                                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                        {authStage === 'password' ? 'Enter Password' :
+                                            authStage === 'otp-verify' ? 'Verify OTP' :
+                                                'Sign in with Mobile Number'}
+                                    </span>
                                     <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent"></div>
                                 </div>
 
-                                <form onSubmit={handleWhatsAppLogin} className="space-y-4">
-                                    {!showOtp ? (
+                                {/* FORM SWITCHER */}
+                                {authStage === 'phone' && (
+                                    <form onSubmit={handlePhoneSubmit} className="space-y-4">
                                         <div className="space-y-3">
-
                                             <div className="relative group">
                                                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-emerald-600 transition-colors" />
                                                 <Input
@@ -494,11 +609,67 @@ function LoginForm() {
                                                 />
                                             </div>
                                             <p className="text-xs text-gray-500 ml-1">
-                                                We'll detect your account type automatically
+                                                We'll check if you have an account
                                             </p>
                                         </div>
-                                    ) : (
-                                        <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                        <Button
+                                            type="submit"
+                                            className="w-full h-12 md:h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-lg shadow-emerald-100 transition-all hover:scale-[1.02] active:scale-[0.98] font-semibold text-base"
+                                            disabled={loading}
+                                        >
+                                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Continue"}
+                                        </Button>
+                                    </form>
+                                )}
+
+                                {authStage === 'password' && (
+                                    <form onSubmit={handlePasswordLogin} className="space-y-4 animate-in fade-in slide-in-from-right-4">
+                                        <div className="space-y-3">
+                                            <div className="relative group">
+                                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-emerald-600 transition-colors" />
+                                                <Input
+                                                    type="password"
+                                                    placeholder="Enter your password"
+                                                    className="pl-12 h-12 md:h-14 bg-gray-50/50 border-gray-200 focus:bg-white focus:ring-4 focus:ring-emerald-100 transition-all rounded-2xl text-base"
+                                                    value={password}
+                                                    onChange={(e) => setPassword(e.target.value)}
+                                                    autoFocus
+                                                    required
+                                                />
+                                            </div>
+                                            {userAuthData?.hasBiometrics && (
+                                                <div className="text-center">
+                                                    <Button variant="ghost" type="button" onClick={handleBiometricLogin} className="text-emerald-600">
+                                                        Use Biometrics / FaceID instead
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <Button
+                                            type="submit"
+                                            className="w-full h-12 md:h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-lg shadow-emerald-100 transition-all hover:scale-[1.02] active:scale-[0.98] font-semibold text-base"
+                                            disabled={loading}
+                                        >
+                                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Sign In"}
+                                        </Button>
+                                        <div className="text-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    // Fallback to OTP
+                                                    sendOtp(`+91${whatsappNumber.replace(/\D/g, '').slice(-10)}`);
+                                                }}
+                                                className="text-xs text-gray-500 hover:text-gray-800 underline"
+                                            >
+                                                Forgot Password? Login with OTP
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
+
+                                {authStage === 'otp-verify' && (
+                                    <form onSubmit={handleOtpVerify} className="space-y-4 animate-in fade-in slide-in-from-right-4">
+                                        <div className="space-y-3">
                                             <Label className="text-xs font-semibold text-gray-700 uppercase tracking-wider ml-1">
                                                 Enter Verification Code
                                             </Label>
@@ -515,32 +686,25 @@ function LoginForm() {
                                                 variant="ghost"
                                                 size="sm"
                                                 type="button"
-                                                onClick={() => setShowOtp(false)}
+                                                onClick={() => setAuthStage('phone')}
                                                 className="text-xs text-emerald-600 p-0 h-auto hover:bg-transparent hover:underline"
                                             >
                                                 ← Change number
                                             </Button>
                                         </div>
-                                    )}
-
-                                    <Button
-                                        type="submit"
-                                        className="w-full h-12 md:h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-lg shadow-emerald-100 transition-all hover:scale-[1.02] active:scale-[0.98] font-semibold text-base"
-                                        disabled={loading}
-                                    >
-                                        {loading ? (
-                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                        ) : showOtp ? (
-                                            "Verify & Sign In"
-                                        ) : (
-                                            "Continue"
-                                        )}
-                                    </Button>
-                                </form>
+                                        <Button
+                                            type="submit"
+                                            className="w-full h-12 md:h-14 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl shadow-lg shadow-emerald-100 transition-all hover:scale-[1.02] active:scale-[0.98] font-semibold text-base"
+                                            disabled={loading}
+                                        >
+                                            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Verify & Login"}
+                                        </Button>
+                                    </form>
+                                )}
                             </div>
 
                             {/* Divider */}
-                            {!showOtp && (
+                            {authStage === 'phone' && (
                                 <div className="relative flex py-3 items-center">
                                     <div className="flex-grow border-t border-gray-200"></div>
                                     <span className="flex-shrink-0 mx-4 text-xs text-gray-400 uppercase font-semibold tracking-wider">Or</span>
@@ -549,7 +713,7 @@ function LoginForm() {
                             )}
 
                             {/* Google Sign-In Section */}
-                            {!showOtp && (
+                            {authStage === 'phone' && (
                                 <div className="space-y-4">
                                     <Button
                                         type="button"
@@ -574,7 +738,7 @@ function LoginForm() {
                             )}
 
                             {/* Staff Login Link */}
-                            {!showOtp && (
+                            {authStage === 'phone' && (
                                 <div className="pt-4 border-t border-gray-100">
                                     <Button
                                         variant="ghost"
@@ -599,7 +763,22 @@ function LoginForm() {
                     onCancel={handleWhatsAppCancel}
                     loading={loading}
                 />
+
+                {/* Security Setup Modal */}
+                {showSecurityModal && securityModalData && (
+                    <SecuritySetupModal
+                        isOpen={showSecurityModal}
+                        onClose={handleSecurityModalClose}
+                        userId={securityModalData.userId}
+                        userType={securityModalData.userType}
+                        userName={securityModalData.userName}
+                        missingFeatures={securityModalData.missingFeatures}
+                    />
+                )}
             </div>
+
+            {/* Recaptcha Container - Required for Phone Auth */}
+            <div id="recaptcha-container"></div>
         </div>
     );
 }

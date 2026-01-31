@@ -59,12 +59,30 @@ export default function CustomerLayout({
 
 function BottomNavigation({ cartSize }: { cartSize: number }) {
     const pathname = usePathname();
+    const [showProfileMenu, setShowProfileMenu] = useState(false);
+    const [customer, setCustomer] = useState<any>(null);
+
+    useEffect(() => {
+        const saved = localStorage.getItem('customer');
+        if (saved) {
+            try {
+                setCustomer(JSON.parse(saved));
+            } catch (error) {
+                console.error("Failed to parse customer data:", error);
+            }
+        }
+    }, []);
+
+    const handleLogout = async () => {
+        await deleteSession('customer');
+        localStorage.removeItem('customer');
+        window.location.href = '/login';
+    };
 
     const navItems = [
         { label: "Shop", href: "/shop", icon: Home },
         { label: "Orders", href: "/shop/orders", icon: ClipboardList },
         { label: "Cart", href: "/shop/cart", icon: ShoppingCart, badge: cartSize },
-        { label: "Profile", href: "/shop/profile", icon: UserCircle },
     ];
 
     return (
@@ -102,6 +120,76 @@ function BottomNavigation({ cartSize }: { cartSize: number }) {
                         </Link>
                     );
                 })}
+
+                {/* Profile Dropdown */}
+                <div className="relative">
+                    <button
+                        onClick={() => setShowProfileMenu(!showProfileMenu)}
+                        className={cn(
+                            "flex flex-col items-center gap-1 transition-all duration-300 relative group",
+                            pathname === "/shop/profile" ? "text-amber-600" : "text-gray-400 hover:text-gray-600"
+                        )}
+                    >
+                        <div className={cn(
+                            "p-2 rounded-2xl transition-all duration-300",
+                            pathname === "/shop/profile" ? "bg-amber-50 scale-110" : "bg-transparent group-active:scale-95"
+                        )}>
+                            <UserCircle className={cn("h-5 w-5", pathname === "/shop/profile" ? "stroke-[2.5px]" : "stroke-[2px]")} />
+                        </div>
+
+                        {pathname === "/shop/profile" && (
+                            <span className="absolute -bottom-1 w-1 h-1 bg-amber-600 rounded-full" />
+                        )}
+                    </button>
+
+                    {showProfileMenu && (
+                        <>
+                            <div className="fixed inset-0 z-10" onClick={() => setShowProfileMenu(false)}></div>
+                            <div className="absolute bottom-full right-0 mb-2 w-56 bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 z-20 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                <div className="px-4 py-3 border-b border-gray-50 flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold shrink-0">
+                                        {customer?.ownerName?.[0] || 'C'}
+                                    </div>
+                                    <div className="overflow-hidden">
+                                        <p className="text-sm font-bold text-gray-900 truncate">
+                                            {customer?.ownerName || 'Customer'}
+                                        </p>
+                                        <p className="text-[10px] text-gray-500 truncate">
+                                            {customer?.shopName || 'Management'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="py-2">
+                                    <Link
+                                        href="/shop/profile"
+                                        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary transition-colors"
+                                        onClick={() => setShowProfileMenu(false)}
+                                    >
+                                        <User className="h-4 w-4" />
+                                        <span>My Profile</span>
+                                    </Link>
+                                    <Link
+                                        href="/shop/orders"
+                                        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary transition-colors"
+                                        onClick={() => setShowProfileMenu(false)}
+                                    >
+                                        <ShoppingBag className="h-4 w-4" />
+                                        <span>Order History</span>
+                                    </Link>
+                                </div>
+                                <div className="border-t border-gray-50 pt-2">
+                                    <button
+                                        onClick={handleLogout}
+                                        className="flex w-full items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors font-medium"
+                                    >
+                                        <LogOut className="h-4 w-4" />
+                                        <span>Logout</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
         </nav>
     );
@@ -123,7 +211,7 @@ function DropdownAction({ cartSize }: { cartSize: number }) {
     }, []);
 
     const handleLogout = async () => {
-        await deleteSession();
+        await deleteSession('customer');
         localStorage.removeItem('customer');
         window.location.href = '/login';
     };
@@ -139,7 +227,7 @@ function DropdownAction({ cartSize }: { cartSize: number }) {
                 </Link>
             </nav>
 
-            <div className="relative">
+            <div className="relative hidden md:block">
                 <Button
                     variant="ghost"
                     size="icon"

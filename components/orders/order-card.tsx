@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Order } from "@/lib/demo-data";
+import { Order } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface OrderCardProps {

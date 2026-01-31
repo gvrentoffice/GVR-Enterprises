@@ -1,4 +1,16 @@
-import { query, where, getDocs, doc, getDoc, orderBy, QueryConstraint } from 'firebase/firestore';
+import {
+    query,
+    where,
+    getDocs,
+    doc,
+    getDoc,
+    setDoc,
+    updateDoc,
+    orderBy,
+    QueryConstraint,
+    Timestamp,
+    collection
+} from 'firebase/firestore';
 import { categoriesRef } from '../collections';
 import { db } from '../config';
 import { TENANT_ID } from '../../constants';
@@ -141,5 +153,112 @@ export async function getCategoryBySlug(slug: string): Promise<Category | null> 
     } catch (error) {
         console.error('Error fetching category by slug:', error);
         return null;
+    }
+}
+
+/**
+ * Create a new category
+ */
+export async function createCategory(data: {
+    name: string;
+    slug: string;
+    description?: string;
+    parentId?: string;
+    level: number;
+    order: number;
+}): Promise<string> {
+    try {
+        const categoryRef = doc(collection(db, 'categories'));
+        const now = Timestamp.now();
+
+        const category: Record<string, any> = {
+            tenantId: TENANT_ID,
+            name: data.name,
+            slug: data.slug,
+            level: data.level,
+            order: data.order,
+            isActive: true,
+            createdAt: now,
+            updatedAt: now,
+        };
+
+        if (data.description) category.description = data.description;
+        if (data.parentId) category.parentId = data.parentId;
+
+        await setDoc(categoryRef, category);
+        return categoryRef.id;
+    } catch (error) {
+        console.error('Error creating category:', error);
+        throw error;
+    }
+}
+
+/**
+ * Update an existing category
+ */
+export async function updateCategory(
+    categoryId: string,
+    data: Partial<Omit<Category, 'id' | 'tenantId' | 'createdAt'>>
+): Promise<void> {
+    try {
+        const categoryRef = doc(db, 'categories', categoryId);
+
+        // Remove undefined values
+        const updateData: Record<string, any> = { ...data };
+        Object.keys(updateData).forEach(key =>
+            updateData[key] === undefined && delete updateData[key]
+        );
+
+        await updateDoc(categoryRef, {
+            ...updateData,
+            updatedAt: Timestamp.now(),
+        });
+    } catch (error) {
+        console.error('Error updating category:', error);
+        throw error;
+    }
+}
+
+/**
+ * Delete a category (soft delete by setting isActive to false)
+ */
+export async function deleteCategory(categoryId: string): Promise<void> {
+    try {
+        const categoryRef = doc(db, 'categories', categoryId);
+        await updateDoc(categoryRef, {
+            isActive: false,
+            updatedAt: Timestamp.now(),
+        });
+    } catch (error) {
+        console.error('Error deleting category:', error);
+        throw error;
+    }
+}
+
+/**
+ * Get the next order number for a category level
+ */
+export async function getNextOrderNumber(parentId?: string): Promise<number> {
+    try {
+        const constraints: QueryConstraint[] = [
+            where('tenantId', '==', TENANT_ID),
+        ];
+
+        if (parentId) {
+            constraints.push(where('parentId', '==', parentId));
+        } else {
+            constraints.push(where('level', '==', 0));
+        }
+
+        const q = query(categoriesRef, ...constraints, orderBy('order', 'desc'));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) return 0;
+
+        const highestOrder = snapshot.docs[0].data().order || 0;
+        return highestOrder + 1;
+    } catch (error) {
+        console.error('Error getting next order number:', error);
+        return 0;
     }
 }

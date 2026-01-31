@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { collection, addDoc, getDocs, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase/config';
 import { nanoid } from 'nanoid';
+import { getCategoryTree, createCategory, getNextOrderNumber } from '@/lib/firebase/services/categoryService';
+import type { Category } from '@/lib/firebase/schema';
 
 // Validation schema
 const productSchema = z.object({
@@ -26,6 +28,9 @@ const productSchema = z.object({
 
 type ProductFormData = z.infer<typeof productSchema>;
 
+// Extend Category type to include children
+type CategoryWithChildren = Category & { children?: Category[] };
+
 export default function ProductUploadPage() {
     const [images, setImages] = useState<File[]>([]);
     const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -33,12 +38,13 @@ export default function ProductUploadPage() {
     const [uploadStatus, setUploadStatus] = useState<string>('');
 
     // Categories state
-    const [categories, setCategories] = useState<Array<{ id: string, name: string, subCategories: string[] }>>([]);
+    const [categories, setCategories] = useState<CategoryWithChildren[]>([]);
     const [showAddCategory, setShowAddCategory] = useState(false);
     const [showAddSubCategory, setShowAddSubCategory] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [newSubCategoryName, setNewSubCategoryName] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
+    const [categoryLoading, setCategoryLoading] = useState(false);
     const [generatedSKU, setGeneratedSKU] = useState('');
 
     const {
@@ -54,7 +60,7 @@ export default function ProductUploadPage() {
 
     const productName = watch('name');
 
-    // Load categories from Firestore
+    // Load categories from Service
     useEffect(() => {
         loadCategories();
     }, []);
@@ -85,107 +91,112 @@ export default function ProductUploadPage() {
     }, [productName]);
 
     const loadCategories = async () => {
+        setCategoryLoading(true);
         try {
-            const querySnapshot = await getDocs(collection(db, 'categories'));
-            if (!querySnapshot.empty) {
-                const loadedCats = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    name: doc.data().name,
-                    subCategories: [] // simple for now, can extend if needed
-                }));
-                setCategories(loadedCats);
-            } else {
-                // Fallback if empty (should not happen after sync)
-                setCategories([
-                    { id: 'groceries', name: 'Groceries', subCategories: ['Rice', 'Oil', 'Spices', 'Pulses'] },
-                ]);
-            }
+            const tree = await getCategoryTree();
+            setCategories(tree);
         } catch (error) {
             console.error('Error loading categories:', error);
+        } finally {
+            setCategoryLoading(false);
         }
     };
 
     const handleAddCategory = async () => {
         if (newCategoryName.trim()) {
-            const newCatId = newCategoryName.toLowerCase().replace(/\s+/g, '-');
+            const tempSlug = newCategoryName.toLowerCase().replace(/\s+/g, '-');
 
-            // Check if already exists
-            if (categories.some(c => c.id === newCatId)) {
+            // Check if already exists locally (by name or slug)
+            if (categories.some(c => c.name.toLowerCase() === newCategoryName.toLowerCase())) {
                 alert('Category already exists');
                 return;
             }
 
-            const newCat = {
-                id: newCatId,
-                name: newCategoryName,
-                subCategories: []
-            };
-
-            // Optimistic update
-            setCategories([...categories, newCat]);
-
-            // Update both local state AND form value
-            setSelectedCategory(newCat.id);
-            setValue('categoryId', newCat.id, { shouldValidate: true });
-
-            setNewCategoryName('');
-            setShowAddCategory(false);
-
-            // Save to Firestore
             try {
-                const { setDoc, doc } = await import('firebase/firestore');
-                await setDoc(doc(db, 'categories', newCatId), {
+                setCategoryLoading(true);
+                const order = await getNextOrderNumber();
+                const newId = await createCategory({
                     name: newCategoryName,
-                    slug: newCatId,
-                    tenantId: 'ryth-bazar',
-                    isActive: true,
+                    slug: tempSlug,
                     level: 0,
-                    order: 100,
-                    createdAt: serverTimestamp()
+                    order,
+                    parentId: undefined
                 });
+
+                setNewCategoryName('');
+                setShowAddCategory(false);
+
+                // Refresh categories and select the new one
+                await loadCategories();
+                setSelectedCategory(newId);
+                setValue('categoryId', newId, { shouldValidate: true });
+                setUploadStatus('Category created successfully!');
+                setTimeout(() => setUploadStatus(''), 3000);
+
             } catch (err) {
-                console.error("Failed to save category to DB", err);
-                alert("Warning: Category saved locally but failed to save to database.");
+                console.error("Failed to save category", err);
+                alert("Failed to save category to database.");
+            } finally {
+                setCategoryLoading(false);
             }
         }
     };
 
-    const handleAddSubCategory = () => {
+    const handleAddSubCategory = async () => {
         if (newSubCategoryName.trim() && selectedCategory) {
-            // Check if subcat already exists in this category
-            const category = categories.find(c => c.id === selectedCategory);
-            if (category && category.subCategories.includes(newSubCategoryName)) {
+            const parentCat = categories.find(c => c.id === selectedCategory);
+
+            if (parentCat?.children?.some(sc => sc.name.toLowerCase() === newSubCategoryName.toLowerCase())) {
                 alert('Sub-category already exists');
                 return;
             }
 
-            const updatedCategories = categories.map(cat => {
-                if (cat.id === selectedCategory) {
-                    return {
-                        ...cat,
-                        subCategories: [...cat.subCategories, newSubCategoryName]
-                    };
-                }
-                return cat;
-            });
-            setCategories(updatedCategories);
+            try {
+                setCategoryLoading(true);
+                const tempSlug = newSubCategoryName.toLowerCase().replace(/\s+/g, '-');
+                const order = await getNextOrderNumber(selectedCategory);
 
-            // Update form value
-            setValue('subCategoryId', newSubCategoryName, { shouldValidate: true });
+                const newId = await createCategory({
+                    name: newSubCategoryName,
+                    slug: tempSlug,
+                    level: 1,
+                    parentId: selectedCategory,
+                    order
+                });
 
-            setNewSubCategoryName('');
-            setShowAddSubCategory(false);
+                setNewSubCategoryName('');
+                setShowAddSubCategory(false);
+
+                // Refresh categories and select the new subcategory
+                await loadCategories();
+                setValue('subCategoryId', newId, { shouldValidate: true });
+                setUploadStatus('Sub-category created successfully!');
+                setTimeout(() => setUploadStatus(''), 3000);
+
+            } catch (error) {
+                console.error("Failed to create sub-category", error);
+                alert("Failed to create sub-category");
+            } finally {
+                setCategoryLoading(false);
+            }
         }
     };
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            const files = Array.from(e.target.files);
-            setImages(prev => [...prev, ...files]);
+        try {
+            if (e.target.files && e.target.files.length > 0) {
+                const newFiles = Array.from(e.target.files);
+                setImages(prev => [...prev, ...newFiles]);
 
-            // Create previews
-            const previews = files.map(file => URL.createObjectURL(file));
-            setImagePreviews(prev => [...prev, ...previews]);
+                // Create previews
+                const newPreviews = newFiles.map(file => URL.createObjectURL(file));
+                setImagePreviews(prev => [...prev, ...newPreviews]);
+
+                // Clear the input value so the same file can be selected again
+                e.target.value = '';
+            }
+        } catch (error) {
+            console.error('Error handling image selection:', error);
         }
     };
 
@@ -206,7 +217,7 @@ export default function ProductUploadPage() {
                 // Wrap upload in a timeout to prevent hanging on CORS/Network errors
                 const uploadPromise = uploadBytes(storageRef, file);
                 const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Upload timed out (likely CORS or Storage not enabled)')), 2000)
+                    setTimeout(() => reject(new Error('Upload timed out (likely CORS or Storage not enabled)')), 15000)
                 );
 
                 await Promise.race([uploadPromise, timeoutPromise]);
@@ -241,12 +252,11 @@ export default function ProductUploadPage() {
                 }
             }
 
-            // Get category name
+            // Get category and subcategory names
             const category = categories.find(c => c.id === data.categoryId);
             const categoryName = category?.name || '';
-
-            // Get sub-category name if selected
-            const subCategoryName = data.subCategoryId || '';
+            const subCategory = category?.children?.find(sc => sc.id === data.subCategoryId);
+            const subCategoryName = subCategory?.name || '';
 
             // Prepare product data
             const productData = {
@@ -271,7 +281,7 @@ export default function ProductUploadPage() {
                     isPrimary: index === 0,
                     order: index,
                 })),
-                thumbnail: imageUrls[0] || '/placeholder.jpg',
+                thumbnail: imageUrls[0] || '/placeholder.svg',
 
                 // Pricing
                 pricing: {
@@ -357,6 +367,9 @@ export default function ProductUploadPage() {
     const categoryField = register('categoryId');
     const subCategoryField = register('subCategoryId');
 
+    // Get subcategories for selected category
+    const currentSubCategories = selectedCategory ? categories.find(c => c.id === selectedCategory)?.children || [] : [];
+
     return (
         <div className="min-h-screen bg-zinc-50 p-8">
             <div className="max-w-4xl mx-auto">
@@ -393,7 +406,6 @@ export default function ProductUploadPage() {
                                 type="file"
                                 accept="image/*"
                                 multiple
-                                max={5}
                                 onChange={handleImageChange}
                                 className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                             />
@@ -503,15 +515,17 @@ export default function ProductUploadPage() {
                                             type="text"
                                             value={newCategoryName}
                                             onChange={(e) => setNewCategoryName(e.target.value)}
+                                            disabled={categoryLoading}
                                             placeholder="New category name"
                                             className="flex-1 px-3 py-2 border border-amber-300 rounded-lg text-sm"
                                         />
                                         <button
                                             type="button"
                                             onClick={handleAddCategory}
-                                            className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700"
+                                            disabled={categoryLoading}
+                                            className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 disabled:opacity-50"
                                         >
-                                            Add
+                                            {categoryLoading ? 'Adding...' : 'Add'}
                                         </button>
                                         <button
                                             type="button"
@@ -540,9 +554,9 @@ export default function ProductUploadPage() {
                                     className="w-full px-4 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-zinc-100 disabled:cursor-not-allowed"
                                 >
                                     <option value="">No sub-category</option>
-                                    {selectedCategory && categories.find(c => c.id === selectedCategory)?.subCategories.map((sub) => (
-                                        <option key={sub} value={sub}>
-                                            {sub}
+                                    {currentSubCategories.map((sub) => (
+                                        <option key={sub.id} value={sub.id}>
+                                            {sub.name}
                                         </option>
                                     ))}
                                     {selectedCategory && (
@@ -559,15 +573,17 @@ export default function ProductUploadPage() {
                                             type="text"
                                             value={newSubCategoryName}
                                             onChange={(e) => setNewSubCategoryName(e.target.value)}
+                                            disabled={categoryLoading}
                                             placeholder="New sub-category"
                                             className="flex-1 px-3 py-2 border border-amber-300 rounded-lg text-sm"
                                         />
                                         <button
                                             type="button"
                                             onClick={handleAddSubCategory}
-                                            className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700"
+                                            disabled={categoryLoading}
+                                            className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 disabled:opacity-50"
                                         >
-                                            Add
+                                            {categoryLoading ? 'Adding...' : 'Add'}
                                         </button>
                                         <button
                                             type="button"

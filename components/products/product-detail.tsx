@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/carousel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Product } from "@/lib/types";
+import { Product } from "@/lib/firebase/schema";
 import { cn } from "@/lib/utils";
 
 interface ProductDetailProps {
@@ -24,10 +24,10 @@ interface ProductDetailProps {
  * Displays full product details with an image carousel
  */
 export function ProductDetail({ product, onAddToCart, className }: ProductDetailProps) {
-    const images = (product.images && product.images.length > 0) ? product.images : [product.image];
+    const images = (product.images && product.images.length > 0) ? product.images : [product.thumbnail];
 
-    // Calculate generic bulk savings if available
-    const savingPercent = product.bulkPrice ? Math.round(((product.price - product.bulkPrice) / product.price) * 100) : 0;
+    // Calculate generic bulk savings if available - using MRP vs Dealer Price
+    const savingPercent = Math.round(((product.pricing.mrp - product.pricing.dealerPrice) / product.pricing.mrp) * 100);
 
     return (
         <div className={cn("grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 animate-in fade-in zoom-in-95 duration-500", className)}>
@@ -88,7 +88,7 @@ export function ProductDetail({ product, onAddToCart, className }: ProductDetail
                 <div>
                     <div className="flex justify-between items-start">
                         <Badge className="bg-secondary text-black hover:bg-secondary/90 mb-4 px-4 py-1.5 text-sm font-medium shadow-sm border-none">
-                            {product.category}
+                            {product.categoryName}
                         </Badge>
                         {product.sku && (
                             <span className="text-xs text-gray-400 font-mono">SKU: {product.sku}</span>
@@ -101,16 +101,16 @@ export function ProductDetail({ product, onAddToCart, className }: ProductDetail
 
                 <div className="flex flex-col gap-1 pb-6 border-b border-gray-100">
                     <div className="flex items-end gap-3">
-                        <span className="text-4xl font-bold text-primary">₹{product.bulkPrice || product.price}</span>
-                        <span className="text-gray-400 text-xl font-medium mb-1">/ {product.unit}</span>
-                        {product.bulkPrice && (
+                        <span className="text-4xl font-bold text-primary">₹{product.pricing.dealerPrice}</span>
+                        <span className="text-gray-400 text-xl font-medium mb-1">/ {product.pricing.unit}</span>
+                        {savingPercent > 0 && (
                             <Badge className="mb-2 bg-green-100 text-green-700 border-none">
                                 Bulk Price ({savingPercent}% Off)
                             </Badge>
                         )}
                     </div>
                     <div className="text-sm text-gray-500">
-                        M.R.P: <span className="line-through">₹{product.price}</span> (Inclusive of {product.taxRate || 0}% GST)
+                        M.R.P: <span className="line-through">₹{product.pricing.mrp}</span> (Inclusive of GST)
                     </div>
                 </div>
 
@@ -118,12 +118,12 @@ export function ProductDetail({ product, onAddToCart, className }: ProductDetail
                 <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col p-3 bg-blue-50/50 rounded-xl border border-blue-100">
                         <span className="text-xs font-semibold text-blue-600 uppercase tracking-wider">MOQ</span>
-                        <span className="text-lg font-bold text-gray-800">{product.moq || 1} {product.unit}s</span>
+                        <span className="text-lg font-bold text-gray-800">{product.pricing.moq || 1} {product.pricing.unit}s</span>
                         <span className="text-xs text-gray-500">Minimum Order</span>
                     </div>
                     <div className="flex flex-col p-3 bg-purple-50/50 rounded-xl border border-purple-100">
                         <span className="text-xs font-semibold text-purple-600 uppercase tracking-wider">Origin</span>
-                        <span className="text-lg font-bold text-gray-800">{product.origin || "India"}</span>
+                        <span className="text-lg font-bold text-gray-800">India</span>
                         <span className="text-xs text-gray-500">Sourced Directly</span>
                     </div>
                 </div>
@@ -139,15 +139,15 @@ export function ProductDetail({ product, onAddToCart, className }: ProductDetail
                         <span className="block text-sm text-gray-500 font-medium mb-1">Stock Status</span>
                         <span className="text-lg font-semibold text-green-600 flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                            {product.stock > (product.moq || 0) ? "In Stock" : "Low Stock"}
+                            {product.inventory.available > (product.pricing.moq || 0) ? "In Stock" : "Low Stock"}
                         </span>
-                        <span className="text-xs text-gray-400">{product.stock} units available</span>
+                        <span className="text-xs text-gray-400">{product.inventory.available} units available</span>
                     </div>
                     <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100">
                         <span className="block text-sm text-gray-500 font-medium mb-1">Quality Score</span>
                         <div className="flex items-center gap-1.5">
                             <span className="text-yellow-400 text-xl">★</span>
-                            <span className="text-lg font-semibold text-gray-900">{product.rating}</span>
+                            <span className="text-lg font-semibold text-gray-900">4.8</span>
                             <span className="text-gray-400 text-sm">/ 5.0</span>
                         </div>
                     </div>

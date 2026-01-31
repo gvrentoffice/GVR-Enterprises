@@ -106,7 +106,7 @@ export default function AgentLayout({
 
                                         <div
                                             onClick={async () => {
-                                                await deleteSession();
+                                                await deleteSession('agent');
                                                 localStorage.removeItem('agent_whatsapp_session');
                                                 window.location.href = '/login';
                                             }}

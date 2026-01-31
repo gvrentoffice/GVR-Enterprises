@@ -1,6 +1,6 @@
 "use client";
 
-import { Product } from "@/lib/demo-data";
+import { Product } from "@/lib/firebase/schema";
 import { ProductCard } from "./product-card";
 import { cn } from "@/lib/utils";
 

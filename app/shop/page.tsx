@@ -2,14 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, Filter, X } from 'lucide-react';
 import { useProducts } from '@/hooks/useProducts';
 import { useCategories } from '@/hooks/useCategories';
 import { ProductCard } from '@/components/products/ProductCard';
 import { ProductFilters } from '@/components/products/ProductFilters';
 import { Button } from '@/components/ui/button';
 import { ProductGridSkeleton } from '@/components/products/ProductSkeleton';
-import { cn } from '@/lib/utils';
 import type { Lead } from '@/lib/firebase/schema';
 
 export default function ShopPage() {
@@ -34,7 +33,10 @@ export default function ShopPage() {
     });
 
     // Fetch categories
-    const { categories, loading: categoriesLoading, error: categoriesError } = useCategories();
+    const { categories: allCategories, loading: categoriesLoading, error: categoriesError } = useCategories();
+
+    // Use all fetched categories
+    const categories = allCategories;
 
     const isLoading = productsLoading || categoriesLoading;
     const hasError = productsError || categoriesError;
@@ -61,11 +63,11 @@ export default function ShopPage() {
 
 
     return (
-        <div className="min-h-screen bg-gray-50/50">
+        <div className="min-h-screen bg-gradient-to-br from-amber-50/50 via-orange-50/30 to-red-50/50">
             {/* Customer Status Banner (Subtle) */}
             {!customer ? (
-                <div className="bg-amber-100/30 backdrop-blur-sm border-b border-amber-100">
-                    <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-2">
+                <div className="bg-gradient-to-r from-amber-100/40 to-orange-100/40 backdrop-blur-sm border-b border-amber-200/50">
+                    <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-3">
                         <div className="flex items-center justify-between">
                             <p className="text-xs text-amber-900 font-medium">
                                 <span className="font-semibold uppercase tracking-tighter mr-2">Welcome</span> Login to view dealer prices and place orders
@@ -79,16 +81,16 @@ export default function ShopPage() {
                     </div>
                 </div>
             ) : !isApproved ? (
-                <div className="bg-blue-50 backdrop-blur-sm border-b border-blue-100">
-                    <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-2">
+                <div className="bg-gradient-to-r from-blue-100/40 to-indigo-100/40 backdrop-blur-sm border-b border-blue-200/50">
+                    <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-3">
                         <p className="text-xs text-blue-900 font-medium">
                             <span className="font-semibold uppercase tracking-tighter mr-2">Pending Approval</span> Your account is under review for dealer pricing.
                         </p>
                     </div>
                 </div>
             ) : (
-                <div className="bg-gray-900 backdrop-blur-sm border-b border-gray-800">
-                    <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-2">
+                <div className="bg-gradient-to-r from-gray-900 to-gray-800 backdrop-blur-sm border-b border-gray-700">
+                    <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-3">
                         <div className="flex items-center justify-between">
                             <p className="text-xs text-amber-400 font-medium">
                                 <span className="font-semibold uppercase tracking-tighter mr-2 text-white">Dealer Mode</span> Prices unlocked for {customer.shopName}.
@@ -101,56 +103,74 @@ export default function ShopPage() {
                 </div>
             )}
 
-            {/* Header Content */}
-            <div className="bg-white border-b border-gray-100 mt-1">
-                <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    <h1 className="text-2xl font-semibold text-gray-900 tracking-tight uppercase">
+            {/* Header Content with Glassmorphism */}
+            <div className="backdrop-blur-xl bg-white/70 border-b border-white/50 shadow-lg">
+                <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+                    <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent tracking-tight uppercase">
                         Product Catalog
                     </h1>
-                    <p className="text-xs font-medium text-gray-400 mt-1 uppercase tracking-widest">
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 mt-2 uppercase tracking-widest">
                         {filteredProducts.length} Premium Collection{filteredProducts.length !== 1 ? 's' : ''}
                     </p>
                 </div>
             </div>
 
             {/* Main Content */}
-            <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="flex flex-col lg:flex-row gap-10">
-                    {/* Filters Sidebar (Collapsible on Mobile) */}
-                    <div className={cn(
-                        "lg:w-64 shrink-0 transition-all duration-300",
-                        isFilterOpen ? "block" : "hidden lg:block"
-                    )}>
-                        <div className="lg:sticky lg:top-24 bg-white lg:bg-transparent p-6 lg:p-0 rounded-3xl border lg:border-none border-gray-100 shadow-xl lg:shadow-none">
-                            <div className="flex items-center justify-between lg:hidden mb-6">
-                                <h2 className="text-lg font-bold">Filters</h2>
-                                <Button variant="ghost" size="sm" onClick={() => setIsFilterOpen(false)}>
-                                    Close
-                                </Button>
-                            </div>
+            <div className="w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 md:pb-8">
+                <div className="flex gap-6">
+                    {/* Filters Sidebar - Desktop */}
+                    <div className="hidden lg:block w-72 shrink-0">
+                        <div className="sticky top-24 backdrop-blur-xl bg-white/70 rounded-[2rem] border border-white/50 shadow-2xl shadow-orange-500/10 p-6">
                             <ProductFilters
                                 categories={categories}
                                 selectedCategoryId={selectedCategoryId}
                                 searchTerm={searchTerm}
-                                onCategoryChange={(id) => {
-                                    setSelectedCategoryId(id);
-                                    if (window.innerWidth < 1024) setIsFilterOpen(false);
-                                }}
+                                onCategoryChange={(id) => setSelectedCategoryId(id)}
                                 onSearchChange={setSearchTerm}
                             />
                         </div>
                     </div>
 
-                    {/* Mobile Filter Toggle */}
+                    {/* Mobile Filter Sidebar */}
+                    {isFilterOpen && (
+                        <>
+                            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsFilterOpen(false)} />
+                            <div className="fixed left-0 top-0 bottom-0 w-80 max-w-[85vw] bg-gradient-to-br from-white via-amber-50/30 to-orange-50/30 backdrop-blur-xl shadow-2xl z-50 lg:hidden overflow-y-auto">
+                                <div className="p-6 border-b border-gray-100 sticky top-0 bg-white/90 backdrop-blur-xl">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <h2 className="text-xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">Filters</h2>
+                                        <Button variant="ghost" size="sm" onClick={() => setIsFilterOpen(false)} className="h-8 w-8 p-0 rounded-full">
+                                            <X className="w-5 h-5" />
+                                        </Button>
+                                    </div>
+                                    <p className="text-xs text-gray-500">Refine your search</p>
+                                </div>
+                                <div className="p-6">
+                                    <ProductFilters
+                                        categories={categories}
+                                        selectedCategoryId={selectedCategoryId}
+                                        searchTerm={searchTerm}
+                                        onCategoryChange={(id) => {
+                                            setSelectedCategoryId(id);
+                                            setIsFilterOpen(false);
+                                        }}
+                                        onSearchChange={setSearchTerm}
+                                    />
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    {/* Mobile Filter Toggle Button */}
                     <div className="lg:hidden fixed bottom-24 right-6 z-40">
                         <Button
                             onClick={() => setIsFilterOpen(!isFilterOpen)}
-                            className="h-14 w-14 rounded-full shadow-2xl bg-gray-900 hover:bg-black text-white p-0"
+                            className="h-14 w-14 rounded-full shadow-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white p-0"
                         >
                             <div className="relative">
-                                <ShoppingCart className="w-6 h-6" />
+                                <Filter className="w-6 h-6" />
                                 {(selectedCategoryId || searchTerm) && (
-                                    <span className="absolute -top-2 -right-2 w-5 h-5 bg-amber-600 rounded-full text-[10px] font-bold flex items-center justify-center border-2 border-white">
+                                    <span className="absolute -top-2 -right-2 w-5 h-5 bg-white rounded-full text-[10px] font-bold flex items-center justify-center border-2 border-amber-600 text-amber-600">
                                         !
                                     </span>
                                 )}
@@ -159,12 +179,12 @@ export default function ShopPage() {
                     </div>
 
                     {/* Products Grid */}
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                         {isLoading ? (
                             <ProductGridSkeleton />
                         ) : hasError ? (
-                            <div className="text-center py-24 bg-white rounded-[2.5rem] border border-red-100 flex flex-col items-center shadow-sm">
-                                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-6">
+                            <div className="backdrop-blur-xl bg-white/70 rounded-[2rem] border border-red-100/50 shadow-2xl p-12 text-center">
+                                <div className="w-16 h-16 bg-gradient-to-br from-red-100 to-red-200 rounded-full flex items-center justify-center mb-6 mx-auto">
                                     <ShoppingCart className="w-8 h-8 text-red-500" />
                                 </div>
                                 <h3 className="text-xl font-bold text-gray-900 mb-2">Connection Issue</h3>
@@ -173,14 +193,16 @@ export default function ShopPage() {
                                 </p>
                                 <Button
                                     onClick={() => window.location.reload()}
-                                    className="bg-zinc-900 text-white hover:bg-black rounded-xl px-12 h-12 font-bold"
+                                    className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl px-12 h-12 font-bold shadow-lg shadow-amber-500/30"
                                 >
                                     Retry Connection
                                 </Button>
                             </div>
                         ) : filteredProducts.length === 0 ? (
-                            <div className="text-center py-24 bg-white rounded-3xl border border-dashed border-gray-200">
-                                <ShoppingCart className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                            <div className="backdrop-blur-xl bg-white/70 rounded-[2rem] border border-dashed border-gray-200/50 shadow-2xl p-12 text-center">
+                                <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mb-6 mx-auto">
+                                    <ShoppingCart className="w-8 h-8 text-gray-300" />
+                                </div>
                                 <h3 className="text-lg font-semibold text-gray-900 mb-1">
                                     No matches found
                                 </h3>
@@ -199,7 +221,7 @@ export default function ShopPage() {
                                 </Button>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-6">
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                                 {filteredProducts.map((product) => (
                                     <ProductCard
                                         key={product.id}

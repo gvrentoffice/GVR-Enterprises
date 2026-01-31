@@ -6,7 +6,11 @@ export async function createSession(uid: string, role: string) {
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
     const cookieStore = await cookies();
 
-    cookieStore.set('session', uid, {
+    // Use role-specific cookie names to prevent conflicts between different user types
+    const sessionCookieName = `session_${role}`;
+    const roleCookieName = `role_${role}`;
+
+    cookieStore.set(sessionCookieName, uid, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         expires: expiresAt,
@@ -14,7 +18,7 @@ export async function createSession(uid: string, role: string) {
         path: '/',
     });
 
-    cookieStore.set('role', role, {
+    cookieStore.set(roleCookieName, role, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         expires: expiresAt,
@@ -23,8 +27,22 @@ export async function createSession(uid: string, role: string) {
     });
 }
 
-export async function deleteSession() {
+export async function deleteSession(role?: string) {
     const cookieStore = await cookies();
-    cookieStore.delete('session');
-    cookieStore.delete('role');
+
+    if (role) {
+        // Delete specific role session
+        cookieStore.delete(`session_${role}`);
+        cookieStore.delete(`role_${role}`);
+    } else {
+        // Delete all sessions (fallback for backward compatibility)
+        cookieStore.delete('session');
+        cookieStore.delete('role');
+        cookieStore.delete('session_admin');
+        cookieStore.delete('role_admin');
+        cookieStore.delete('session_agent');
+        cookieStore.delete('role_agent');
+        cookieStore.delete('session_customer');
+        cookieStore.delete('role_customer');
+    }
 }

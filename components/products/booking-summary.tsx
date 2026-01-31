@@ -3,7 +3,7 @@
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { Product } from "@/lib/demo-data";
+import { Product } from "@/lib/firebase/schema";
 import { cn } from "@/lib/utils";
 import { ShoppingCart } from "lucide-react";
 
@@ -19,7 +19,7 @@ interface BookingSummaryProps {
  * Displays price breakdown, delivery charges, and total amount.
  */
 export function BookingSummary({ product, quantity, onPlaceOrder, className }: BookingSummaryProps) {
-    const itemTotal = product.price * quantity;
+    const itemTotal = product.pricing.dealerPrice * quantity;
     const deliveryCharge = itemTotal > 500 ? 0 : 40;
     const taxes = Math.round(itemTotal * 0.05); // 5% GST estimate
     const grandTotal = itemTotal + deliveryCharge + taxes;
@@ -37,7 +37,7 @@ export function BookingSummary({ product, quantity, onPlaceOrder, className }: B
                 <div className="flex justify-between items-start">
                     <div>
                         <p className="font-bold text-gray-800">{product.name}</p>
-                        <p className="text-sm text-gray-500">₹{product.price} x {quantity} {product.unit}</p>
+                        <p className="text-sm text-gray-500">₹{product.pricing.dealerPrice} x {quantity} {product.pricing.unit}</p>
                     </div>
                     <span className="font-bold text-gray-900">₹{itemTotal}</span>
                 </div>

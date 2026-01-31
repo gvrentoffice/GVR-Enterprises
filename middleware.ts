@@ -2,9 +2,30 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-    const session = request.cookies.get('session')?.value;
-    const role = request.cookies.get('role')?.value;
     const { pathname } = request.nextUrl;
+
+    // Check for role-specific cookies
+    const adminSession = request.cookies.get('session_admin')?.value;
+    const adminRole = request.cookies.get('role_admin')?.value;
+    const agentSession = request.cookies.get('session_agent')?.value;
+    const agentRole = request.cookies.get('role_agent')?.value;
+    const customerSession = request.cookies.get('session_customer')?.value;
+    const customerRole = request.cookies.get('role_customer')?.value;
+
+    // Determine which session is active
+    let session: string | undefined;
+    let role: string | undefined;
+
+    if (adminSession && adminRole) {
+        session = adminSession;
+        role = adminRole;
+    } else if (agentSession && agentRole) {
+        session = agentSession;
+        role = agentRole;
+    } else if (customerSession && customerRole) {
+        session = customerSession;
+        role = customerRole;
+    }
 
     // Public routes (Login, Register, Seed, etc.)
     if (pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/seed') || pathname === '/') {
@@ -43,9 +64,7 @@ export function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL('/login?error=unauthorized', request.url));
     }
 
-    // Shop is accessible to customers (and technically others if we want, but sticking to strict for now)
-    // Note: If you want admins/agents to view the shop, you might relax this.
-    // However, the user asked for strict URL access control.
+    // Shop is accessible to customers
     if (pathname.startsWith('/shop') && role !== 'customer') {
         // Optionally allow agents/admins to see shop, but for now enforce role
         // return NextResponse.redirect(new URL('/login?error=unauthorized', request.url));

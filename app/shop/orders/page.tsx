@@ -53,10 +53,9 @@ export default function CustomerOrdersPage() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">My Orders</h1>
-                    <p className="text-gray-500 mt-1">Track and manage your order history.</p>
                 </div>
                 <Link href="/shop">
-                    <Button variant="outline" className="rounded-full">
+                    <Button className="rounded-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg shadow-amber-500/30">
                         Continue Shopping
                     </Button>
                 </Link>
@@ -95,11 +94,8 @@ export default function CustomerOrdersPage() {
                             <ShoppingBag className="w-10 h-10 text-gray-300" />
                         </div>
                         <h3 className="text-lg font-bold text-gray-900">No orders found</h3>
-                        <p className="text-gray-500 max-w-xs mx-auto mt-2">
-                            When you place orders, they will appear here.
-                        </p>
                         <Link href="/shop" className="inline-block mt-6">
-                            <Button className="bg-amber-600 hover:bg-amber-700 rounded-full px-8">
+                            <Button className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-full px-8 shadow-lg shadow-amber-500/30">
                                 Start Shopping
                             </Button>
                         </Link>

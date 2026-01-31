@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Product } from "@/lib/types";
+import { Product } from "@/lib/firebase/schema";
 import { cn } from "@/lib/utils";
 
 interface ProductCardProps {
@@ -32,14 +32,14 @@ export function ProductCard({ product, onAddToCart, onViewDetails, className }: 
                 onClick={() => onViewDetails?.(product)}
             >
                 <img
-                    src={product.image}
+                    src={product.thumbnail}
                     alt={product.name}
                     className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
                 />
                 <Badge
                     className="absolute top-3 left-3 bg-white/90 backdrop-blur-md text-black hover:bg-white shadow-sm font-medium px-3 py-1"
                 >
-                    {product.category}
+                    {product.categoryName}
                 </Badge>
             </div>
 
@@ -62,10 +62,10 @@ export function ProductCard({ product, onAddToCart, onViewDetails, className }: 
                         <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Price</span>
                         <div className="flex items-baseline gap-1">
                             <span className="text-2xl font-bold text-primary">
-                                ₹{product.price}
+                                ₹{product.pricing.dealerPrice}
                             </span>
                             <span className="text-sm text-gray-400 font-medium">
-                                / {product.unit}
+                                / {product.pricing.unit}
                             </span>
                         </div>
                     </div>
