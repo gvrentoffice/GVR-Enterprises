@@ -289,23 +289,7 @@ export default function CustomersPage() {
         }
     };
 
-    interface CustomerFormProps {
-        formData: {
-            shopName: string;
-            ownerName: string;
-            whatsappNumber: string;
-            email: string;
-            street: string;
-            city: string;
-            state: string;
-            pincode: string;
-        };
-        setFormData: (data: any) => void;
-        onSubmit: (e: React.FormEvent) => void;
-        isSubmitting: boolean;
-        isEdit?: boolean;
-        onCancel: () => void;
-    }
+
 
     if (agentLoading || leadsLoading) {
         return (
@@ -611,6 +595,24 @@ export default function CustomersPage() {
             </Dialog>
         </div>
     );
+}
+
+interface CustomerFormProps {
+    formData: {
+        shopName: string;
+        ownerName: string;
+        whatsappNumber: string;
+        email: string;
+        street: string;
+        city: string;
+        state: string;
+        pincode: string;
+    };
+    setFormData: (data: any) => void;
+    onSubmit: (e: React.FormEvent) => void;
+    isSubmitting: boolean;
+    isEdit?: boolean;
+    onCancel: () => void;
 }
 
 function CustomerForm({ formData, setFormData, onSubmit, isSubmitting, isEdit = false, onCancel }: CustomerFormProps) {
