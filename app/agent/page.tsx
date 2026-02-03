@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+
 import { useAgent } from '@/hooks/useAgent';
 import { useTodayRoute } from '@/hooks/useRoutes';
 import { useAgentOrders } from '@/hooks/useOrders';
@@ -27,7 +27,6 @@ import { format } from 'date-fns';
 
 
 export default function AgentDashboardPage() {
-    const router = useRouter();
     const { toast } = useToast();
     const { user } = useAuthContext();
     const { agent, checkIn, checkOut } = useAgent();
