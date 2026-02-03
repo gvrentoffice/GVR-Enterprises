@@ -6,7 +6,6 @@ import {
     TrendingUp,
     ShoppingCart,
     Users,
-    Plus,
     CheckCircle2,
     Circle,
     ArrowUpRight,

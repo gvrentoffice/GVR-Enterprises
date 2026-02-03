@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Phone } from 'lucide-react';
 import { verifyAgentAction } from '@/app/actions/agentAuth';
-import { createSession, deleteSession } from '@/app/actions/auth';
+import { createSession } from '@/app/actions/auth';
 
 export default function AgentLoginPage() {
     const router = useRouter();
