@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { TrendingUp, Users, ShoppingCart, DollarSign, Package, TrendingDown } from 'lucide-react';
 import { useOrderStats, useDailyRevenue, useLeadsCount, useActiveAgentsCount } from '@/hooks/useAnalytics';
 import { cn } from '@/lib/utils';
+import LiveActiveAgents from '@/components/admin/LiveActiveAgents';
 
 export default function AdminDashboardPage() {
     // Get last 30 days
@@ -153,7 +154,12 @@ export default function AdminDashboardPage() {
 
                         {/* Charts Section */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-                            {/* Revenue Trend */}
+                            {/* Live Agents Tracking - New Column 1 */}
+                            <div className="lg:col-span-1 h-full">
+                                <LiveActiveAgents />
+                            </div>
+
+                            {/* Revenue Trend - Column 2 & 3 */}
                             <div className="lg:col-span-2 backdrop-blur-xl bg-white/60 rounded-3xl border border-white/50 shadow-xl p-6">
                                 <h3 className="font-black text-zinc-900 mb-4 text-lg">Revenue Trend</h3>
                                 <div className="h-64 bg-gradient-to-br from-amber-100/50 to-orange-100/50 rounded-2xl flex items-center justify-center backdrop-blur-sm border border-white/30">
@@ -167,54 +173,54 @@ export default function AdminDashboardPage() {
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            {/* Order Status */}
-                            <div className="backdrop-blur-xl bg-white/60 rounded-3xl border border-white/50 shadow-xl p-6">
-                                <h3 className="font-black text-zinc-900 mb-4 text-lg">Order Status</h3>
-                                <div className="space-y-4">
-                                    <div>
-                                        <div className="flex justify-between mb-2">
-                                            <span className="text-sm text-zinc-600 font-medium">Pending</span>
-                                            <span className="text-sm font-black text-amber-600">{stats.pendingOrders}</span>
-                                        </div>
-                                        <div className="w-full bg-zinc-200/50 rounded-full h-2.5 backdrop-blur-sm">
-                                            <div
-                                                className="bg-gradient-to-r from-amber-400 to-orange-500 h-2.5 rounded-full shadow-lg shadow-amber-500/30 transition-all duration-500"
-                                                style={{
-                                                    width: `${(stats.pendingOrders / (stats.totalOrders || 1)) * 100}%`,
-                                                }}
-                                            />
-                                        </div>
+                        {/* Order Status Section */}
+                        <div className="mt-6 backdrop-blur-xl bg-white/60 rounded-3xl border border-white/50 shadow-xl p-6 max-w-full">
+                            <h3 className="font-black text-zinc-900 mb-4 text-lg">Order Status Overview</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div>
+                                    <div className="flex justify-between mb-2">
+                                        <span className="text-sm text-zinc-600 font-medium">Pending</span>
+                                        <span className="text-sm font-black text-amber-600">{stats.pendingOrders}</span>
                                     </div>
-
-                                    <div>
-                                        <div className="flex justify-between mb-2">
-                                            <span className="text-sm text-zinc-600 font-medium">Delivered</span>
-                                            <span className="text-sm font-black text-green-600">{stats.deliveredOrders}</span>
-                                        </div>
-                                        <div className="w-full bg-zinc-200/50 rounded-full h-2.5 backdrop-blur-sm">
-                                            <div
-                                                className="bg-gradient-to-r from-green-400 to-emerald-500 h-2.5 rounded-full shadow-lg shadow-green-500/30 transition-all duration-500"
-                                                style={{
-                                                    width: `${(stats.deliveredOrders / (stats.totalOrders || 1)) * 100}%`,
-                                                }}
-                                            />
-                                        </div>
+                                    <div className="w-full bg-zinc-200/50 rounded-full h-2.5 backdrop-blur-sm">
+                                        <div
+                                            className="bg-gradient-to-r from-amber-400 to-orange-500 h-2.5 rounded-full shadow-lg shadow-amber-500/30 transition-all duration-500"
+                                            style={{
+                                                width: `${(stats.pendingOrders / (stats.totalOrders || 1)) * 100}%`,
+                                            }}
+                                        />
                                     </div>
+                                </div>
 
-                                    <div>
-                                        <div className="flex justify-between mb-2">
-                                            <span className="text-sm text-zinc-600 font-medium">Cancelled</span>
-                                            <span className="text-sm font-black text-red-600">{stats.cancelledOrders}</span>
-                                        </div>
-                                        <div className="w-full bg-zinc-200/50 rounded-full h-2.5 backdrop-blur-sm">
-                                            <div
-                                                className="bg-gradient-to-r from-red-400 to-red-600 h-2.5 rounded-full shadow-lg shadow-red-500/30 transition-all duration-500"
-                                                style={{
-                                                    width: `${(stats.cancelledOrders / (stats.totalOrders || 1)) * 100}%`,
-                                                }}
-                                            />
-                                        </div>
+                                <div>
+                                    <div className="flex justify-between mb-2">
+                                        <span className="text-sm text-zinc-600 font-medium">Delivered</span>
+                                        <span className="text-sm font-black text-green-600">{stats.deliveredOrders}</span>
+                                    </div>
+                                    <div className="w-full bg-zinc-200/50 rounded-full h-2.5 backdrop-blur-sm">
+                                        <div
+                                            className="bg-gradient-to-r from-green-400 to-emerald-500 h-2.5 rounded-full shadow-lg shadow-green-500/30 transition-all duration-500"
+                                            style={{
+                                                width: `${(stats.deliveredOrders / (stats.totalOrders || 1)) * 100}%`,
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div className="flex justify-between mb-2">
+                                        <span className="text-sm text-zinc-600 font-medium">Cancelled</span>
+                                        <span className="text-sm font-black text-red-600">{stats.cancelledOrders}</span>
+                                    </div>
+                                    <div className="w-full bg-zinc-200/50 rounded-full h-2.5 backdrop-blur-sm">
+                                        <div
+                                            className="bg-gradient-to-r from-red-400 to-red-600 h-2.5 rounded-full shadow-lg shadow-red-500/30 transition-all duration-500"
+                                            style={{
+                                                width: `${(stats.cancelledOrders / (stats.totalOrders || 1)) * 100}%`,
+                                            }}
+                                        />
                                     </div>
                                 </div>
                             </div>

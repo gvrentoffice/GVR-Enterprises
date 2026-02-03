@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,9 @@ import { loginWithGoogle, logoutUser } from '@/lib/firebase/auth';
 import { createSession } from '@/app/actions/auth';
 import { WhatsAppNumberModal } from '@/components/auth/WhatsAppNumberModal';
 import { SecuritySetupModal } from '@/components/auth/SecuritySetupModal';
+import { MpinSetupModal } from '@/components/auth/MpinSetupModal';
 import { checkAuthMethodsAction, verifyPasswordAction, getWebAuthnLoginOptionsAction, verifyWebAuthnLoginAction } from '@/app/actions/security';
+import { checkMpinStatusAction } from '@/app/actions/mpin';
 import { startAuthentication } from '@simplewebauthn/browser';
 
 // Helper for Google Icon
@@ -92,19 +94,29 @@ function LoginForm() {
         photoURL?: string;
     } | null>(null);
 
+    // MPIN Setup Modal State
+    const [showMpinModal, setShowMpinModal] = useState(false);
+    const [mpinModalData, setMpinModalData] = useState<{
+        userId: string;
+        userType: 'agent' | 'customer';
+        userName: string;
+    } | null>(null);
+
     // Auto-redirect if already logged in
     useEffect(() => {
-        const adminSession = localStorage.getItem('isAdminLoggedIn');
-        if (adminSession === 'true') {
-            router.push('/admin');
-            return;
-        }
+        // Removed Admin redirection to allow dual login (Admin + Customer)
+        // const adminSession = localStorage.getItem('isAdminLoggedIn');
+        // if (adminSession === 'true') {
+        //     router.push('/admin');
+        //     return;
+        // }
 
-        const agentSession = localStorage.getItem('agent_whatsapp_session');
-        if (agentSession) {
-            router.push('/agent');
-            return;
-        }
+        // Removed Agent redirection to allow dual login (Agent + Customer)
+        // const agentSession = localStorage.getItem('agent_whatsapp_session');
+        // if (agentSession) {
+        //     router.push('/agent');
+        //     return;
+        // }
 
         const customerSession = localStorage.getItem('customer');
         if (customerSession) {
@@ -113,12 +125,39 @@ function LoginForm() {
         }
     }, [router]);
 
+    // Cleanup Recaptcha on unmount
+    useEffect(() => {
+        return () => {
+            const win = window as unknown as { recaptchaVerifier: RecaptchaVerifier | null };
+            if (win?.recaptchaVerifier) {
+                try {
+                    win.recaptchaVerifier.clear();
+                    win.recaptchaVerifier = null;
+                } catch (e) {
+                    console.warn("Recaptcha cleanup error", e);
+                }
+            }
+        };
+    }, []);
+
+    const recaptchaContainerRef = useRef<HTMLDivElement>(null);
+
     const setupRecaptcha = () => {
-        const win = window as unknown as { recaptchaVerifier: RecaptchaVerifier | null };
-        if (typeof window !== 'undefined' && !win.recaptchaVerifier) {
+        if (typeof window === 'undefined') return;
+        const win = window as any;
+
+        if (win.recaptchaVerifier) return;
+
+        try {
+            const container = document.getElementById('recaptcha-container');
+            if (container) container.innerHTML = '';
+
             win.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
                 'size': 'invisible'
             });
+            console.log("Recaptcha initialized (invisible)");
+        } catch (error) {
+            console.error("Recaptcha Setup Error:", error);
         }
     };
 
@@ -151,7 +190,10 @@ function LoginForm() {
             }
 
             // 2. CHECK USER AUTH METHODS via Server Action
-            const methods = await checkAuthMethodsAction(formattedNumber);
+            // Pass the RAW clean number to the server, let the server handle formats
+            console.log("Checking auth methods for:", cleanNumber);
+            const methods = await checkAuthMethodsAction(cleanNumber);
+            console.log("Auth methods Check Result:", methods);
 
             if (methods.exists && methods.userId && methods.userType) {
                 // Determine preferred method
@@ -202,7 +244,9 @@ function LoginForm() {
             toast({
                 variant: "destructive",
                 title: "Login Failed",
-                description: error.message || "Could not verify number.",
+                description: error.code === 'auth/invalid-app-credential'
+                    ? "Configuration Error: authorized domain missing or invalid credentials."
+                    : (error.message || "Could not verify number."),
             });
             // Clear recaptcha
             try {
@@ -308,7 +352,7 @@ function LoginForm() {
             );
             const newLead = await getLeadByWhatsApp(formattedNumber);
             if (newLead) {
-                await handleSuccessfulLogin(newLead.id, 'customer', newLead);
+                await handleSuccessfulLogin(newLead.id, 'customer', newLead, true); // Mark as new user
             }
 
         } catch (error: any) {
@@ -322,7 +366,7 @@ function LoginForm() {
         }
     };
 
-    const handleSuccessfulLogin = async (userId: string, role: string, userData?: any) => {
+    const handleSuccessfulLogin = async (userId: string, role: string, userData?: any, isNewUser: boolean = false) => {
         // Create Session
         await createSession(userId, role);
 
@@ -334,40 +378,63 @@ function LoginForm() {
             localStorage.setItem('customer', JSON.stringify(storageData));
         }
 
-        // --- CHECK SECURITY STATUS ---
-        let checkNumber = whatsappNumber;
-        if (!checkNumber && finalUserData?.whatsappNumber) checkNumber = finalUserData.whatsappNumber;
-
-        if (checkNumber) {
-            const cleanNumber = checkNumber.replace(/\D/g, '');
-            const formattedNumber = `+91${cleanNumber.startsWith('91') ? cleanNumber.slice(2) : cleanNumber}`;
-
+        // --- CHECK MPIN STATUS FOR NEW USERS ---
+        if (isNewUser && (role === 'agent' || role === 'customer')) {
             try {
-                const methods = await checkAuthMethodsAction(formattedNumber);
+                const hasMpin = await checkMpinStatusAction(userId, role);
 
-                const missingPassword = !methods.hasPassword;
-                const missingBiometrics = !methods.hasBiometrics;
-                const missingRecovery = !methods.recoveryEmail;
-
-                // If any feature is missing, show the modal
-                if (missingPassword || missingBiometrics || missingRecovery) {
-                    setSecurityModalData({
+                if (!hasMpin) {
+                    // Show MPIN setup modal for new users
+                    setMpinModalData({
                         userId: userId,
                         userType: role as 'agent' | 'customer',
-                        userName: finalUserData?.shopName || finalUserData?.name || 'User',
-                        missingFeatures: {
-                            password: missingPassword,
-                            recoveryEmail: missingRecovery,
-                            biometrics: missingBiometrics
-                        }
+                        userName: finalUserData?.shopName || finalUserData?.name || 'User'
                     });
-                    setShowSecurityModal(true);
+                    setShowMpinModal(true);
                     // Don't route yet
                     return;
                 }
-
             } catch (e) {
-                console.warn("Failed to check security status on login", e);
+                console.warn("Failed to check MPIN status", e);
+            }
+        }
+
+        // --- CHECK SECURITY STATUS FOR EXISTING USERS ---
+        if (!isNewUser) {
+            let checkNumber = whatsappNumber;
+            if (!checkNumber && finalUserData?.whatsappNumber) checkNumber = finalUserData.whatsappNumber;
+
+            if (checkNumber) {
+                const cleanNumber = checkNumber.replace(/\D/g, '');
+                const formattedNumber = `+91${cleanNumber.startsWith('91') ? cleanNumber.slice(2) : cleanNumber}`;
+
+                try {
+                    const methods = await checkAuthMethodsAction(formattedNumber);
+
+                    const missingPassword = !methods.hasPassword;
+                    const missingBiometrics = !methods.hasBiometrics;
+                    const missingRecovery = !methods.recoveryEmail;
+
+                    // If any feature is missing, show the modal
+                    if (missingPassword || missingBiometrics || missingRecovery) {
+                        setSecurityModalData({
+                            userId: userId,
+                            userType: role as 'agent' | 'customer',
+                            userName: finalUserData?.shopName || finalUserData?.name || 'User',
+                            missingFeatures: {
+                                password: missingPassword,
+                                recoveryEmail: missingRecovery,
+                                biometrics: missingBiometrics
+                            }
+                        });
+                        setShowSecurityModal(true);
+                        // Don't route yet
+                        return;
+                    }
+
+                } catch (e) {
+                    console.warn("Failed to check security status on login", e);
+                }
             }
         }
 
@@ -381,6 +448,14 @@ function LoginForm() {
         setShowSecurityModal(false);
         // Redirect after modal close
         const role = securityModalData?.userType;
+        if (role === 'agent') router.push('/agent');
+        else router.push('/shop');
+    }
+
+    const handleMpinModalClose = () => {
+        setShowMpinModal(false);
+        // Redirect after modal close
+        const role = mpinModalData?.userType;
         if (role === 'agent') router.push('/agent');
         else router.push('/shop');
     }
@@ -754,7 +829,7 @@ function LoginForm() {
                 </div>
 
                 {/* reCAPTCHA */}
-                <div id="recaptcha-container"></div>
+                <div ref={recaptchaContainerRef} id="recaptcha-container"></div>
 
                 {/* WhatsApp Number Modal for Google Sign-In */}
                 <WhatsAppNumberModal
@@ -775,10 +850,18 @@ function LoginForm() {
                         missingFeatures={securityModalData.missingFeatures}
                     />
                 )}
-            </div>
 
-            {/* Recaptcha Container - Required for Phone Auth */}
-            <div id="recaptcha-container"></div>
+                {/* MPIN Setup Modal */}
+                {showMpinModal && mpinModalData && (
+                    <MpinSetupModal
+                        isOpen={showMpinModal}
+                        onClose={handleMpinModalClose}
+                        userId={mpinModalData.userId}
+                        userType={mpinModalData.userType}
+                        userName={mpinModalData.userName}
+                    />
+                )}
+            </div>
         </div>
     );
 }

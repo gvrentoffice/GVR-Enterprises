@@ -17,6 +17,7 @@ import { db } from '../config';
 import { TENANT_ID } from '../../constants';
 import type { Order, OrderStatus } from '../schema';
 import { updateProductStock } from './productService';
+import { logAgentActivity, getAgentById } from './agentService';
 
 /**
  * Generate unique order number
@@ -45,6 +46,25 @@ export async function createOrder(orderData: Omit<Order, 'id' | 'createdAt' | 'u
         };
 
         await setDoc(doc(db, 'orders', orderId), order);
+
+        // Log agent activity
+        if (orderData.agentId) {
+            const agent = await getAgentById(orderData.agentId);
+            if (agent) {
+                await logAgentActivity({
+                    agentId: orderData.agentId,
+                    agentName: agent.name,
+                    type: 'ORDER_CREATED',
+                    description: `Created order for ${orderData.shippingAddress?.name || 'Customer'}`,
+                    metadata: {
+                        orderId,
+                        total: orderData.total,
+                        customerName: orderData.shippingAddress?.name || 'Customer'
+                    }
+                });
+            }
+        }
+
         return orderId;
     } catch (error) {
         console.error('Error creating order:', error);

@@ -146,7 +146,8 @@ export interface Agent {
   };
   status: 'active' | 'on_leave' | 'inactive';
   // Security
-  passwordHash?: string;
+  mpin?: string; // Hashed 4-6 digit PIN
+  passwordHash?: string; // Deprecated, kept for backward compatibility
   webAuthnCredentials?: {
     id: string;
     publicKey: string;
@@ -154,8 +155,9 @@ export interface Agent {
     transports?: string[];
   }[];
   authPreferences?: {
-    enablePasswordLogin: boolean;
-    enableBiometricLogin: boolean;
+    enableMpinLogin?: boolean;
+    enablePasswordLogin?: boolean; // Deprecated
+    enableBiometricLogin?: boolean;
   };
   recoveryEmail?: string;
   isEmailVerified?: boolean;
@@ -191,7 +193,7 @@ export interface Lead {
   shopName: string;
   ownerName: string;
   whatsappNumber: string;
-  email?: string;
+  email?: string | null;
   primaryAddress: {
     street: string;
     city: string;
@@ -205,7 +207,8 @@ export interface Lead {
   status: 'pending' | 'approved' | 'rejected';
   priceAccessApproved: boolean;
   // Security
-  passwordHash?: string;
+  mpin?: string; // Hashed 4-6 digit PIN
+  passwordHash?: string; // Deprecated, kept for backward compatibility
   webAuthnCredentials?: {
     id: string;
     publicKey: string;
@@ -213,8 +216,9 @@ export interface Lead {
     transports?: string[];
   }[];
   authPreferences?: {
-    enablePasswordLogin: boolean;
-    enableBiometricLogin: boolean;
+    enableMpinLogin?: boolean;
+    enablePasswordLogin?: boolean; // Deprecated
+    enableBiometricLogin?: boolean;
   };
   recoveryEmail?: string;
   isEmailVerified?: boolean;

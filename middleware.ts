@@ -12,41 +12,60 @@ export function middleware(request: NextRequest) {
     const customerSession = request.cookies.get('session_customer')?.value;
     const customerRole = request.cookies.get('role_customer')?.value;
 
-    // Determine which session is active
+    // Determine which session is active based on path
     let session: string | undefined;
     let role: string | undefined;
 
-    if (adminSession && adminRole) {
+    if (pathname.startsWith('/admin') && adminSession && adminRole) {
         session = adminSession;
         role = adminRole;
-    } else if (agentSession && agentRole) {
+    } else if (pathname.startsWith('/agent') && agentSession && agentRole) {
         session = agentSession;
         role = agentRole;
-    } else if (customerSession && customerRole) {
+    } else if ((pathname.startsWith('/shop') || pathname.startsWith('/login')) && customerSession && customerRole) {
         session = customerSession;
         role = customerRole;
+    } else {
+        // Fallback for root or other paths: Prioritize Admin > Agent > Customer
+        if (adminSession && adminRole) {
+            session = adminSession;
+            role = adminRole;
+        } else if (agentSession && agentRole) {
+            session = agentSession;
+            role = agentRole;
+        } else if (customerSession && customerRole) {
+            session = customerSession;
+            role = customerRole;
+        }
     }
 
     // Public routes (Login, Register, Seed, etc.)
+    // Allow access to role-specific login pages even if logged in as a different role
     if (pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/seed') || pathname === '/') {
-        // If user is already logged in, redirect to their dashboard
-        if (session && role) {
-            if (role === 'admin' && !pathname.startsWith('/admin')) {
-                return NextResponse.redirect(new URL('/admin', request.url));
-            }
-            if (role === 'agent' && !pathname.startsWith('/agent')) {
-                return NextResponse.redirect(new URL('/agent', request.url));
-            }
-            if (role === 'customer' && !pathname.startsWith('/shop')) {
-                return NextResponse.redirect(new URL('/shop', request.url));
-            }
-        }
-
         // If visiting root and not logged in, redirect to login
         if (pathname === '/' && !session) {
             return NextResponse.redirect(new URL('/login', request.url));
         }
 
+        // If visiting root and logged in, redirect to appropriate dashboard
+        if (pathname === '/' && session && role) {
+            if (role === 'admin') {
+                return NextResponse.redirect(new URL('/admin', request.url));
+            }
+            if (role === 'agent') {
+                return NextResponse.redirect(new URL('/agent', request.url));
+            }
+            if (role === 'customer') {
+                return NextResponse.redirect(new URL('/shop', request.url));
+            }
+        }
+
+        return NextResponse.next();
+    }
+
+    // Allow access to role-specific login pages
+    // Admin can access /admin/login, Agent can access /agent/login, etc.
+    if (pathname === '/admin/login' || pathname === '/agent/login') {
         return NextResponse.next();
     }
 
@@ -74,5 +93,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ['/', '/admin/:path*', '/agent/:path*', '/shop/:path*', '/login', '/register'],
+    matcher: ['/', '/admin/:path*', '/agent/:path*', '/shop/:path*', '/login', '/register', '/admin/login', '/agent/login'],
 };

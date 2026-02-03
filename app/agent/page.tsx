@@ -26,6 +26,7 @@ import { useAuthContext } from '@/app/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
+
 export default function AgentDashboardPage() {
     const router = useRouter();
     const { toast } = useToast();
@@ -35,6 +36,7 @@ export default function AgentDashboardPage() {
     const { orders } = useAgentOrders(user?.uid || '');
     const { leads } = useAgentLeads(user?.uid || '');
 
+
     const salesTarget = 500000;
     const currentSales = orders?.reduce((acc, order) => acc + (order.total || 0), 0) || 0;
     const salesProgress = (currentSales / salesTarget) * 100;
@@ -43,17 +45,101 @@ export default function AgentDashboardPage() {
     const currentOnboarding = leads?.length || 0;
     const onboardingProgress = (currentOnboarding / onboardingTarget) * 100;
 
-    const handleOnboardClick = (e: React.MouseEvent) => {
-        if (agent?.status !== 'active') {
-            e.preventDefault();
+
+
+    const handlePunchIn = async () => {
+        if (!agent) {
             toast({
-                title: "Wait a moment! 😊",
-                description: "To start onboarding new customers, please PUNCH IN first. It helps us keep track of your hard work today!",
-                variant: "destructive",
+                title: 'Error',
+                description: 'Agent information not loaded',
+                variant: 'destructive',
             });
             return;
         }
-        router.push('/agent/onboarding');
+
+        // Get user's location
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const location = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                    };
+
+                    const success = await checkIn(location);
+
+                    if (success) {
+                        const timestamp = new Date().toLocaleString('en-IN', {
+                            timeZone: 'Asia/Kolkata',
+                            dateStyle: 'medium',
+                            timeStyle: 'medium'
+                        });
+                        console.log('✅ PUNCH IN:', timestamp, location);
+                        toast({
+                            title: 'Punched In Successfully! 🎉',
+                            description: `Started at ${timestamp}`,
+                        });
+                    } else {
+                        toast({
+                            title: 'Error',
+                            description: 'Failed to punch in. Please try again.',
+                            variant: 'destructive',
+                        });
+                    }
+                },
+                (error) => {
+                    console.error('Location error:', {
+                        code: error.code,
+                        message: error.message,
+                        PERMISSION_DENIED: error.PERMISSION_DENIED,
+                        POSITION_UNAVAILABLE: error.POSITION_UNAVAILABLE,
+                        TIMEOUT: error.TIMEOUT
+                    });
+
+                    let errorMessage = 'Please enable location access to punch in.';
+                    if (error.code === 1) errorMessage = 'Location permission denied. Please enable it in your browser settings.';
+                    else if (error.code === 2) errorMessage = 'Location unavailable. Please check your GPS signal.';
+                    else if (error.code === 3) errorMessage = 'Location request timed out. Please try again.';
+
+                    toast({
+                        title: 'Location Required',
+                        description: errorMessage,
+                        variant: 'destructive',
+                    });
+                }
+            );
+        } else {
+            toast({
+                title: 'Error',
+                description: 'Geolocation is not supported by your browser.',
+                variant: 'destructive',
+            });
+        }
+    };
+
+    const handlePunchOut = async () => {
+        if (!agent) return;
+
+        const success = await checkOut();
+
+        if (success) {
+            const timestamp = new Date().toLocaleString('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                dateStyle: 'medium',
+                timeStyle: 'medium'
+            });
+            console.log('🛑 PUNCH OUT:', timestamp);
+            toast({
+                title: 'Punched Out Successfully! 👋',
+                description: `Ended at ${timestamp}`,
+            });
+        } else {
+            toast({
+                title: 'Error',
+                description: 'Failed to punch out. Please try again.',
+                variant: 'destructive',
+            });
+        }
     };
 
     const toggleVisit = (_id: string) => {
@@ -70,7 +156,7 @@ export default function AgentDashboardPage() {
                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div>
                         <h1 className="text-3xl md:text-4xl font-bold mb-2">
-                            Good Morning, {user?.displayName?.split(' ')[0] || 'Agent'}!
+                            Good Morning, {agent?.name?.split(' ')[0] || user?.displayName?.split(' ')[0] || 'Agent'}!
                         </h1>
                         <p className="text-amber-50/80 text-lg flex items-center gap-2">
                             <Clock className="w-5 h-5" />
@@ -88,19 +174,9 @@ export default function AgentDashboardPage() {
                                 ? "bg-white text-amber-700 hover:bg-amber-50"
                                 : "bg-black text-white hover:bg-gray-900 border-none px-10"
                                 }`}
-                            onClick={() => agent?.status === 'active' ? checkOut() : checkIn({ latitude: 19.0760, longitude: 72.8777 })}
+                            onClick={() => agent?.status === 'active' ? handlePunchOut() : handlePunchIn()}
                         >
-                            {agent?.status === 'active' ? 'End Shift' : 'Punch In'}
-                        </Button>
-
-                        <Button
-                            variant="outline"
-                            size="lg"
-                            className="h-14 px-8 text-lg font-bold rounded-2xl bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white transition-all active:scale-95"
-                            onClick={handleOnboardClick}
-                        >
-                            <Plus className="w-6 h-6 mr-2" />
-                            Onboard Shop
+                            {agent?.status === 'active' ? 'Punch Out' : 'Punch In'}
                         </Button>
                     </div>
                 </div>

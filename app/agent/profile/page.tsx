@@ -39,7 +39,7 @@ export default function AgentProfilePage() {
                     <Button variant="outline" onClick={async () => {
                         await deleteSession();
                         localStorage.removeItem('agent_whatsapp_session');
-                        window.location.href = '/login';
+                        window.location.href = '/agent/login';
                     }} className="text-red-500 hover:text-red-600 border-red-100 hover:bg-red-50 rounded-xl h-10 sm:h-auto px-3 sm:px-4">
                         <LogOut className="w-4 h-4 sm:mr-2" />
                         <span className="hidden sm:inline">Logout</span>

@@ -79,3 +79,24 @@ export function useCreateAgent() {
 
     return { create, loading, error };
 }
+
+export function useUpdateAgent() {
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const update = useCallback(async (agentId: string, updates: Partial<Agent>) => {
+        try {
+            setLoading(true);
+            setError(null);
+            const { updateAgent } = await import('@/lib/firebase/services/agentService');
+            await updateAgent(agentId, updates);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to update agent');
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    return { update, loading, error };
+}

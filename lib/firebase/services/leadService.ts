@@ -16,6 +16,7 @@ import {
 import { db } from '../config';
 import { TENANT_ID } from '../../constants';
 import type { Lead } from '../schema';
+import { logAgentActivity, getAgentById } from './agentService';
 
 /**
  * Create new lead
@@ -36,6 +37,26 @@ export async function createLead(
         };
 
         await setDoc(doc(db, 'leads', leadId), lead);
+
+        // Log activity (non-blocking)
+        try {
+            if (leadData.agentId) {
+                const agent = await getAgentById(leadData.agentId);
+                if (agent) {
+                    await logAgentActivity({
+                        agentId: leadData.agentId,
+                        agentName: agent.name,
+                        type: 'CUSTOMER_ONBOARDED',
+                        description: `Onboarded customer ${leadData.shopName}`,
+                        metadata: { leadId, shopName: leadData.shopName }
+                    });
+                }
+            }
+        } catch (logError) {
+            console.error('Failed to log customer onboarding activity:', logError);
+            // Continue execution - do not fail lead creation if logging fails
+        }
+
         return leadId;
     } catch (error) {
         console.error('Error creating lead:', error);
@@ -205,9 +226,17 @@ export async function getLeadById(leadId: string): Promise<Lead | null> {
  */
 export async function getLeadByWhatsApp(whatsappNumber: string): Promise<Lead | null> {
     try {
+        const cleanNumber = whatsappNumber.replace(/\D/g, '');
+        const formats = [
+            `+${cleanNumber}`,
+            cleanNumber,
+            cleanNumber.replace(/^91/, '')
+        ];
+        const searchNumbers = [...new Set(formats)].filter(n => n.length >= 10);
+
         const constraints: QueryConstraint[] = [
             where('tenantId', '==', TENANT_ID),
-            where('whatsappNumber', '==', whatsappNumber),
+            where('whatsappNumber', 'in', searchNumbers),
         ];
 
         const q = query(collection(db, 'leads'), ...constraints);

@@ -23,8 +23,8 @@ import {
 
 // CONSTANTS for WebAuthn
 const RP_NAME = 'Ryth Bazar';
-const RP_ID = 'localhost'; // TODO: Change for production
-const ORIGIN = 'http://localhost:3000'; // TODO: Change for production
+const RP_ID = process.env.NEXT_PUBLIC_RP_ID || 'localhost';
+const ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 /**
  * Check if a user exists and what auth methods they have enabled
@@ -39,11 +39,30 @@ export async function checkUserAuthMethods(phoneNumber: string): Promise<{
     recoveryEmail?: string;
 }> {
     try {
+        // Prepare phone formats
+        const cleanNumber = phoneNumber.replace(/\D/g, '');
+        // Assuming strictly Indian numbers for now based on +91 context, can be generalized later
+        const formats = [
+            `+${cleanNumber}`,              // existing input
+            cleanNumber,                    // existing input
+        ];
+
+        // Specific logic for Indian numbers (10 digits)
+        if (cleanNumber.length === 10) {
+            formats.push(`+91${cleanNumber}`);
+            formats.push(`91${cleanNumber}`);
+        } else if (cleanNumber.length === 12 && cleanNumber.startsWith('91')) {
+            formats.push(`+${cleanNumber}`);     // +91...
+            formats.push(cleanNumber.slice(2));  // 98...
+        }
+        // Remove duplicates and invalid lengths
+        const searchNumbers = [...new Set(formats)].filter(n => n.length >= 10);
+
         // 1. Check Agent
         const agentQuery = query(
             collection(db, 'agents'),
             where('tenantId', '==', TENANT_ID),
-            where('whatsappNumber', '==', phoneNumber)
+            where('whatsappNumber', 'in', searchNumbers)
         );
         const agentSnap = await getDocs(agentQuery);
 
@@ -64,7 +83,7 @@ export async function checkUserAuthMethods(phoneNumber: string): Promise<{
         const leadQuery = query(
             collection(db, 'leads'),
             where('tenantId', '==', TENANT_ID),
-            where('whatsappNumber', '==', phoneNumber)
+            where('whatsappNumber', 'in', searchNumbers)
         );
         const leadSnap = await getDocs(leadQuery);
 
