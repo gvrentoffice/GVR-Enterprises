@@ -13,16 +13,6 @@ import {
 } from "@/lib/firebase/services/authService";
 
 export async function checkAuthMethodsAction(phoneNumber: string) {
-    // EMERGENCY BYPASS / FIX for 9686095841
-    const cleanNum = phoneNumber.replace(/\D/g, '');
-    if (cleanNum === '9686095841' || cleanNum === '919686095841') {
-        const check = await checkUserAuthMethods(phoneNumber);
-        if (check.exists && check.userId && !check.hasPassword) {
-            console.log("Auto-setting password for test account:", cleanNum);
-            await setUserPassword(check.userId, check.userType === 'agent' ? 'agents' : 'leads', 'ryth123');
-        }
-    }
-
     const result = await checkUserAuthMethods(phoneNumber);
     // Ensure the result is serializable by converting to plain object
     return JSON.parse(JSON.stringify(result));

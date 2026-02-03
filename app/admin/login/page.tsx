@@ -6,14 +6,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Phone } from 'lucide-react';
+import { Loader2, Phone, User, Lock } from 'lucide-react';
 import { createSession } from '@/app/actions/auth';
+import { verifyAdminCredentials } from '@/lib/firebase/services/adminAuthService';
 
 export default function AdminLoginPage() {
     const router = useRouter();
     const { toast } = useToast();
 
     const [loading, setLoading] = useState(false);
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
 
     const handleAdminLogin = async (e: React.FormEvent) => {
@@ -21,29 +24,14 @@ export default function AdminLoginPage() {
         setLoading(true);
 
         try {
-            // Phone number login - verify against hardcoded admin phone
-            let result;
-            if (phoneNumber === '8050181994') {
-                result = {
-                    success: true,
-                    adminId: 'admin-user-id',
-                };
-            } else {
-                result = {
-                    success: false,
-                    error: 'Invalid phone number',
-                };
-            }
+            // Verify admin credentials using proper authentication service
+            const result = await verifyAdminCredentials(username, password, phoneNumber);
 
             if (result.success && result.adminId) {
-                // Clear any existing sessions first to prevent conflicts
-                // await deleteSession('agent');
-                // await deleteSession('customer');
-
                 // Create admin session
                 await createSession(result.adminId, 'admin');
 
-                // Store in localStorage
+                // Store minimal data in localStorage (only for UI preferences)
                 localStorage.setItem('isAdminLoggedIn', 'true');
                 localStorage.setItem('adminId', result.adminId);
 
@@ -99,10 +87,46 @@ export default function AdminLoginPage() {
                     </div>
 
                     <form onSubmit={handleAdminLogin} className="space-y-5">
-                        {/* Phone Number */}
+                        {/* Username */}
                         <div className="space-y-2">
                             <Label className="text-sm font-medium text-gray-700">
-                                Phone Number
+                                Username
+                            </Label>
+                            <div className="relative">
+                                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                <Input
+                                    type="text"
+                                    placeholder="Enter admin username"
+                                    className="pl-12 h-14 bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all rounded-xl text-base"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        {/* Password */}
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium text-gray-700">
+                                Password
+                            </Label>
+                            <div className="relative">
+                                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                <Input
+                                    type="password"
+                                    placeholder="Enter password"
+                                    className="pl-12 h-14 bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all rounded-xl text-base"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        {/* Phone Number (Optional) */}
+                        <div className="space-y-2">
+                            <Label className="text-sm font-medium text-gray-700">
+                                Phone Number <span className="text-gray-400">(Optional)</span>
                             </Label>
                             <div className="relative">
                                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -112,12 +136,8 @@ export default function AdminLoginPage() {
                                     className="pl-12 h-14 bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all rounded-xl text-base"
                                     value={phoneNumber}
                                     onChange={(e) => setPhoneNumber(e.target.value)}
-                                    required
                                 />
                             </div>
-                            <p className="text-xs text-gray-500">
-                                We'll check if you have an account
-                            </p>
                         </div>
 
                         {/* Submit Button */}

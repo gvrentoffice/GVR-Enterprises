@@ -1,77 +1,126 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write to test collection (for development/testing)
-    match /test/{document=**} {
-      allow read, write: if true;
-    }
-    
     // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     function isAdmin() {
-      // For development, we'll temporarilly allow all authenticated users
-      // In production, uncomment the check below
-      return isAuthenticated(); 
-      // && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Check if user has admin role in users collection
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
-    
+
     function isAgent() {
-      return isAuthenticated() && 
+      return isAuthenticated() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'agent';
     }
-    
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Validate data types and required fields
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
     // Companies - B2B customers
     match /companies/{companyId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
-    
-    // Users
+
+    // Users - Restrict access to own data only
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && request.auth.uid == userId;
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && isOwner(userId)
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'permissions']);
       allow delete: if isAdmin();
     }
-    
-    // Products - Public read, admin write
+
+    // Products - Public read, admin-only write
     match /products/{productId} {
-      allow read: if true; // Public
-      allow write: if true; // TEMPORARY for development
-    }
-    
-    // Orders
-    match /orders/{orderId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAdmin() || isAgent();
+      allow read: if true; // Public read for catalog browsing
+      allow create: if isAdmin() && hasRequiredFields(['name', 'categoryId', 'mrp', 'dealerPrice']);
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
-    
-    // Agents
-    match /agents/{agentId} {
-      allow read: if isAuthenticated();
+
+    // Categories
+    match /categories/{categoryId} {
+      allow read: if true; // Public read
       allow write: if isAdmin();
     }
-    
-    // Routes
-    match /routes/{routeId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin() || isAgent();
-    }
-    
-    // Leads
-    match /leads/{leadId} {
-      allow read: if isAuthenticated();
-      allow create: if isAgent();
-      allow update: if isAdmin() || isAgent();
+
+    // Orders - Strict ownership and role-based access
+    match /orders/{orderId} {
+      // Read: Only if owner, assigned agent, or admin
+      allow read: if isAuthenticated() && (
+        isOwner(resource.data.userId) ||
+        isAdmin() ||
+        (isAgent() && resource.data.agentId == request.auth.uid)
+      );
+
+      // Create: Only if creating for yourself
+      allow create: if isAuthenticated() &&
+                    request.resource.data.userId == request.auth.uid &&
+                    hasRequiredFields(['items', 'subtotal', 'total', 'status']);
+
+      // Update: Admin, or assigned agent, or owner (limited fields)
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (isAgent() && resource.data.agentId == request.auth.uid) ||
+        (isOwner(resource.data.userId) &&
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['items', 'total', 'agentId']))
+      );
+
       allow delete: if isAdmin();
     }
-    
-    // Settings
+
+    // Agents - Admin manages, agents read own data
+    match /agents/{agentId} {
+      allow read: if isAuthenticated() && (isOwner(agentId) || isAdmin() || isAgent());
+      allow create: if isAdmin();
+      allow update: if isAdmin() || isOwner(agentId);
+      allow delete: if isAdmin();
+    }
+
+    // Routes - Agents manage own routes
+    match /routes/{routeId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isAgent() && resource.data.agentId == request.auth.uid)
+      );
+      allow create: if isAgent() && request.resource.data.agentId == request.auth.uid;
+      allow update: if isAdmin() || (isAgent() && resource.data.agentId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // Leads - Agent creates, admin approves
+    match /leads/{leadId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() ||
+        (isAgent() && resource.data.agentId == request.auth.uid) ||
+        isOwner(leadId)
+      );
+      allow create: if isAgent() &&
+                    request.resource.data.agentId == request.auth.uid &&
+                    hasRequiredFields(['shopName', 'ownerName', 'whatsappNumber']);
+      allow update: if isAdmin() ||
+                    (isAgent() && resource.data.agentId == request.auth.uid) ||
+                    (isOwner(leadId) &&
+                     !request.resource.data.diff(resource.data).affectedKeys().hasAny(['priceAccessApproved', 'agentId', 'status']));
+      allow delete: if isAdmin();
+    }
+
+    // Settings - Admin only
     match /settings/{settingId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();

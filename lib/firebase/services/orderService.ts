@@ -12,11 +12,12 @@ import {
     Timestamp,
     updateDoc,
     QueryConstraint,
+    runTransaction,
+    increment,
 } from 'firebase/firestore';
 import { db } from '../config';
 import { TENANT_ID } from '../../constants';
 import type { Order, OrderStatus } from '../schema';
-import { updateProductStock } from './productService';
 import { logAgentActivity, getAgentById } from './agentService';
 
 /**
@@ -163,30 +164,57 @@ export async function getOrdersByStatus(status: OrderStatus): Promise<Order[]> {
 
 /**
  * Update order status
+ * Uses Firestore transaction when restoring stock on cancellation
  */
 export async function updateOrderStatus(
     orderId: string,
     newStatus: OrderStatus
 ): Promise<boolean> {
     try {
-        const docRef = doc(db, 'orders', orderId);
-        const orderSnap = await getDoc(docRef);
+        const orderRef = doc(db, 'orders', orderId);
 
+        // Use transaction if we need to restore stock
+        const orderSnap = await getDoc(orderRef);
         if (!orderSnap.exists()) return false;
         const order = orderSnap.data() as Order;
 
-        // If cancelling a confirmed/processing/shipped order, restore stock
-        if (newStatus === 'cancelled' && ['confirmed', 'processing', 'shipped'].includes(order.status)) {
-            const stockUpdates = order.items.map((item) =>
-                updateProductStock(item.productId, item.quantity)
-            );
-            await Promise.all(stockUpdates);
+        const needsStockRestore = newStatus === 'cancelled' &&
+                                  ['confirmed', 'processing', 'shipped'].includes(order.status);
+
+        if (needsStockRestore) {
+            // Use transaction to restore stock atomically
+            await runTransaction(db, async (transaction) => {
+                // Re-read order in transaction
+                const currentOrderSnap = await transaction.get(orderRef);
+                if (!currentOrderSnap.exists()) {
+                    throw new Error('Order not found');
+                }
+
+                const currentOrder = currentOrderSnap.data() as Order;
+
+                // Restore stock for each item atomically
+                for (const item of currentOrder.items) {
+                    const productRef = doc(db, 'products', item.productId);
+                    transaction.update(productRef, {
+                        'inventory.available': increment(item.quantity),
+                        updatedAt: Timestamp.now(),
+                    });
+                }
+
+                // Update order status atomically
+                transaction.update(orderRef, {
+                    status: newStatus,
+                    updatedAt: Timestamp.now(),
+                });
+            });
+        } else {
+            // Simple status update without stock changes
+            await updateDoc(orderRef, {
+                status: newStatus,
+                updatedAt: Timestamp.now(),
+            });
         }
 
-        await updateDoc(docRef, {
-            status: newStatus,
-            updatedAt: Timestamp.now(),
-        });
         return true;
     } catch (error) {
         console.error('Error updating order status:', error);
@@ -348,26 +376,53 @@ export async function getOrdersByCompanyId(companyId: string): Promise<Order[]> 
 
 /**
  * Confirm order by agent (B2B)
+ * Uses Firestore transaction to prevent race conditions in stock updates
  */
 export async function confirmOrderByAgent(orderId: string): Promise<boolean> {
     try {
-        const docRef = doc(db, 'orders', orderId);
-        const orderSnap = await getDoc(docRef);
+        const orderRef = doc(db, 'orders', orderId);
 
-        if (!orderSnap.exists()) return false;
-        const order = orderSnap.data() as Order;
+        // Use transaction to ensure atomicity
+        await runTransaction(db, async (transaction) => {
+            const orderSnap = await transaction.get(orderRef);
 
-        // Decrement stock for each item
-        const stockUpdates = order.items.map((item) =>
-            updateProductStock(item.productId, -item.quantity)
-        );
-        await Promise.all(stockUpdates);
+            if (!orderSnap.exists()) {
+                throw new Error('Order not found');
+            }
 
-        await updateDoc(docRef, {
-            agentConfirmed: true,
-            status: 'confirmed',
-            updatedAt: Timestamp.now(),
+            const order = orderSnap.data() as Order;
+
+            // Decrement stock for each item atomically
+            for (const item of order.items) {
+                const productRef = doc(db, 'products', item.productId);
+                const productSnap = await transaction.get(productRef);
+
+                if (!productSnap.exists()) {
+                    throw new Error(`Product ${item.productId} not found`);
+                }
+
+                const currentStock = productSnap.data()?.inventory?.available || 0;
+
+                // Check if sufficient stock is available
+                if (currentStock < item.quantity) {
+                    throw new Error(`Insufficient stock for product ${item.productId}. Available: ${currentStock}, Required: ${item.quantity}`);
+                }
+
+                // Update product stock atomically
+                transaction.update(productRef, {
+                    'inventory.available': increment(-item.quantity),
+                    updatedAt: Timestamp.now(),
+                });
+            }
+
+            // Update order status atomically
+            transaction.update(orderRef, {
+                agentConfirmed: true,
+                status: 'confirmed',
+                updatedAt: Timestamp.now(),
+            });
         });
+
         return true;
     } catch (error) {
         console.error('Error confirming order:', error);

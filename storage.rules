@@ -1,8 +1,70 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isValidImageType() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function isValidDocumentType() {
+      return request.resource.contentType.matches('image/.*') ||
+             request.resource.contentType == 'application/pdf';
+    }
+
+    function isValidSize(maxSizeMB) {
+      return request.resource.size < maxSizeMB * 1024 * 1024;
+    }
+
+    // Product images - Public read, authenticated write with validation
+    match /products/{productId}/{fileName} {
+      allow read: if true; // Public read for product images
+      allow write: if isAuthenticated() &&
+                   isValidImageType() &&
+                   isValidSize(5); // Max 5MB
+    }
+
+    // Shop images (for leads/customers) - Authenticated access with validation
+    match /shops/{shopId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() &&
+                   isValidDocumentType() &&
+                   isValidSize(10); // Max 10MB for documents
+    }
+
+    // Agent documents - Authenticated access with validation
+    match /agents/{agentId}/{fileName} {
+      allow read: if isAuthenticated() &&
+                  (request.auth.uid == agentId ||
+                   resource.metadata.isPublic == true);
+      allow write: if isAuthenticated() &&
+                   request.auth.uid == agentId &&
+                   isValidDocumentType() &&
+                   isValidSize(10); // Max 10MB
+    }
+
+    // Visiting cards - Authenticated access
+    match /visiting-cards/{leadId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() &&
+                   isValidImageType() &&
+                   isValidSize(5); // Max 5MB
+    }
+
+    // Order documents - Restricted to authenticated users
+    match /orders/{orderId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() &&
+                   isValidDocumentType() &&
+                   isValidSize(10); // Max 10MB
+    }
+
+    // Deny all other paths by default
     match /{allPaths=**} {
-      allow read, write: if true; // Temporary for development
+      allow read, write: if false;
     }
   }
 }

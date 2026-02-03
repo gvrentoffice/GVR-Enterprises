@@ -91,8 +91,58 @@ module.exports = withPWA({
     // Enable compression
     compress: true,
 
-    // Cache headers for performance
+    // Security and cache headers
     headers: async () => [
+        // Security headers for all routes
+        {
+            source: '/:path*',
+            headers: [
+                // Prevent clickjacking
+                {
+                    key: 'X-Frame-Options',
+                    value: 'DENY',
+                },
+                // Prevent MIME type sniffing
+                {
+                    key: 'X-Content-Type-Options',
+                    value: 'nosniff',
+                },
+                // Enable XSS protection (legacy browsers)
+                {
+                    key: 'X-XSS-Protection',
+                    value: '1; mode=block',
+                },
+                // Referrer policy
+                {
+                    key: 'Referrer-Policy',
+                    value: 'strict-origin-when-cross-origin',
+                },
+                // Permissions policy (restrict features)
+                {
+                    key: 'Permissions-Policy',
+                    value: 'camera=(), microphone=(), geolocation=(self), interest-cohort=()',
+                },
+                // Content Security Policy
+                {
+                    key: 'Content-Security-Policy',
+                    value: [
+                        "default-src 'self'",
+                        "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://www.googletagmanager.com",
+                        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+                        "font-src 'self' https://fonts.gstatic.com data:",
+                        "img-src 'self' data: blob: https: http:",
+                        "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net wss://*.firebaseio.com",
+                        "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com",
+                        "object-src 'none'",
+                        "base-uri 'self'",
+                        "form-action 'self'",
+                        "frame-ancestors 'none'",
+                        "upgrade-insecure-requests"
+                    ].join('; '),
+                },
+            ],
+        },
+        // Cache headers for static assets
         {
             source: '/images/:path*',
             headers: [

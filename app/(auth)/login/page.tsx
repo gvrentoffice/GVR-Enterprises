@@ -173,23 +173,7 @@ function LoginForm() {
                 : cleanNumber;
             const formattedNumber = `+91${normalizedNumber}`;
 
-            // CONSTANTS
-            const REGISTERED_ADMIN = '8050181994';
-
-            // 1. CHECK HARDCODED ADMIN
-            if (normalizedNumber === REGISTERED_ADMIN) {
-                toast({
-                    title: "Admin Verified",
-                    description: "Logging in as Administrator...",
-                });
-                await createSession('admin-user-id', 'admin');
-                localStorage.setItem('isAdminLoggedIn', 'true');
-                router.push('/admin');
-                setLoading(false);
-                return;
-            }
-
-            // 2. CHECK USER AUTH METHODS via Server Action
+            // CHECK USER AUTH METHODS via Server Action
             // Pass the RAW clean number to the server, let the server handle formats
             console.log("Checking auth methods for:", cleanNumber);
             const methods = await checkAuthMethodsAction(cleanNumber);
