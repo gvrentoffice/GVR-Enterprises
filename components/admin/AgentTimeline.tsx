@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { format } from 'date-fns';
-import { Activity, Clock, CheckCircle, Package, UserPlus } from 'lucide-react';
+import { Activity, Clock, Package, UserPlus } from 'lucide-react';
 
 interface TimelineEvent {
     id: string;
@@ -74,7 +74,7 @@ export function AgentTimeline({ agentId }: AgentTimelineProps) {
     return (
         <div className="h-[300px] w-full pr-4 overflow-y-auto">
             <div className="space-y-4">
-                {events.map((event, index) => (
+                {events.map((event) => (
                     <div key={event.id} className="relative pl-6 pb-4 border-l border-gray-200 last:pb-0">
                         {/* Dot */}
                         <div className="absolute left-[-5px] top-1 w-2.5 h-2.5 rounded-full bg-white border-2 border-primary" />
