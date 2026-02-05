@@ -1,8 +1,8 @@
 {
-    "name": "Ryth-Bazar Shop",
+    "name": "Ryth Bazar Shop",
     "short_name": "Shop",
     "description": "B2B Product Shopping Platform",
-    "start_url": "/",
+    "start_url": "/shop",
     "scope": "/",
     "display": "standalone",
     "orientation": "portrait-primary",

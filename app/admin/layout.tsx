@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { LayoutDashboard, TrendingUp, Users, ShoppingBag, User, LogOut, Package, ClipboardList, Map, MoreHorizontal, X, Trash2, Wrench } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { deleteSession } from '@/app/actions/auth';
+import { ManifestLink } from '@/components/ManifestLink';
 
 const navItems = [
     { label: 'Dash', icon: LayoutDashboard, href: '/admin' },
@@ -58,7 +59,10 @@ export default function AdminLayout({
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 flex flex-col lg:flex-row font-sans">
+        <>
+            <ManifestLink />
+            <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 flex flex-col lg:flex-row font-sans">
+
             {/* Desktop Sidebar with Glassmorphism (1024px+) */}
             {!isLoginPage && (
                 <aside className="w-72 hidden lg:flex flex-col fixed inset-y-0 z-50">
@@ -318,6 +322,7 @@ export default function AdminLayout({
                     {children}
                 </div>
             </main>
-        </div >
+            </div>
+        </>
     );
 }

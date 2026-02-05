@@ -1,8 +1,8 @@
 {
-    "name": "Ryth-Bazar Agent",
+    "name": "Ryth Bazar Agent",
     "short_name": "Agent",
     "description": "Field Sales & Order Management",
-    "start_url": "/agent/dashboard",
+    "start_url": "/agent",
     "scope": "/agent/",
     "display": "standalone",
     "background_color": "#F4F4F5",

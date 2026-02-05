@@ -1,8 +1,8 @@
 {
-    "name": "Ryth-Bazar Admin",
+    "name": "Ryth Bazar Admin",
     "short_name": "Admin",
     "description": "Business Analytics & Management",
-    "start_url": "/admin/dashboard",
+    "start_url": "/admin",
     "scope": "/admin/",
     "display": "standalone",
     "background_color": "#F4F4F5",

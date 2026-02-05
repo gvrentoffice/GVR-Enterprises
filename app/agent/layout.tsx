@@ -8,6 +8,7 @@ import { Home, Map, ShoppingCart, Users, BarChart3, User, LogOut } from 'lucide-
 import { useAuthContext } from '@/app/AuthContext';
 import { OfflineIndicator } from '@/components/OfflineIndicator';
 import { deleteSession } from '@/app/actions/auth';
+import { ManifestLink } from '@/components/ManifestLink';
 
 export default function AgentLayout({
     children,
@@ -34,8 +35,10 @@ export default function AgentLayout({
     }, []);
 
     return (
-        <div className={`min-h-screen bg-gray-50 font-inter ${!isLoginPage ? 'pb-20' : ''}`}>
-            <main className="container mx-auto px-4 py-8">
+        <>
+            <ManifestLink />
+            <div className={`min-h-screen bg-gradient-to-br from-zinc-50 via-amber-50/30 to-orange-50/20 font-inter ${!isLoginPage ? 'pb-20' : ''}`}>
+                <main className="container mx-auto px-4 py-8">
                 {children}
             </main>
 
@@ -131,6 +134,7 @@ export default function AgentLayout({
                     </div>
                 </nav>
             )}
-        </div>
+            </div>
+        </>
     );
 }

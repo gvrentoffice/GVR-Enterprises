@@ -9,6 +9,7 @@ import { usePathname } from "next/navigation";
 import { useCart } from "@/lib/hooks/useCart";
 import { cn } from "@/lib/utils";
 import { deleteSession } from "@/app/actions/auth";
+import { ManifestLink } from "@/components/ManifestLink";
 
 export default function CustomerLayout({
     children,
@@ -17,43 +18,46 @@ export default function CustomerLayout({
 }) {
     const { cartSize } = useCart();
     return (
-        <div className="min-h-screen bg-transparent flex flex-col"> {/* Background is handled by body in globals.css */}
-            {/* Minimal Header with distinct separation */}
-            <header className="relative z-40 w-full bg-white border-b border-gray-200 shadow-sm">
-                <div className="container flex h-16 items-center justify-between px-4">
+        <>
+            <ManifestLink />
+            <div className="min-h-screen bg-transparent flex flex-col">
+                {/* Minimal Header with distinct separation */}
+                <header className="relative z-40 w-full bg-white border-b border-gray-200 shadow-sm">
+                    <div className="container flex h-16 items-center justify-between px-4">
 
-                    {/* Logo & Mobile Menu */}
-                    <div className="flex items-center gap-2">
-                        <Link href="/" className="text-xl font-bold tracking-tight text-primary">
-                            Ryth Bazar
-                        </Link>
-                    </div>
-
-                    {/* Search Bar (Desktop) */}
-                    <div className="hidden md:flex items-center max-w-sm w-full mx-8">
-                        <div className="relative w-full group">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-primary transition-colors" />
-                            <Input
-                                type="search"
-                                placeholder="Search products..."
-                                className="w-full bg-gray-100/50 rounded-full pl-10 border-transparent focus:bg-white focus:border-primary/20 focus:ring-4 focus:ring-primary/10 transition-all"
-                            />
+                        {/* Logo & Mobile Menu */}
+                        <div className="flex items-center gap-2">
+                            <Link href="/" className="text-xl font-bold tracking-tight text-primary">
+                                Ryth Bazar
+                            </Link>
                         </div>
+
+                        {/* Search Bar (Desktop) */}
+                        <div className="hidden md:flex items-center max-w-sm w-full mx-8">
+                            <div className="relative w-full group">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-primary transition-colors" />
+                                <Input
+                                    type="search"
+                                    placeholder="Search products..."
+                                    className="w-full bg-gray-100/50 rounded-full pl-10 border-transparent focus:bg-white focus:border-primary/20 focus:ring-4 focus:ring-primary/10 transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <DropdownAction cartSize={cartSize} />
                     </div>
+                </header>
 
-                    {/* Actions */}
-                    <DropdownAction cartSize={cartSize} />
-                </div>
-            </header>
+                {/* Main Content */}
+                <main className="flex-1 container px-4 py-8 pb-24 md:pb-8">
+                    {children}
+                </main>
 
-            {/* Main Content */}
-            <main className="flex-1 container px-4 py-8 pb-24 md:pb-8">
-                {children}
-            </main>
-
-            {/* Bottom Navigation (Mobile Only) */}
-            <BottomNavigation cartSize={cartSize} />
-        </div>
+                {/* Bottom Navigation (Mobile Only) */}
+                <BottomNavigation cartSize={cartSize} />
+            </div>
+        </>
     );
 }
 
