@@ -1,3 +1,7 @@
+'use client';
+
+import { ManifestLink } from '@/components/ManifestLink';
+
 export default function AgentLoginLayout({
     children,
 }: {
@@ -6,8 +10,11 @@ export default function AgentLoginLayout({
     // Standalone layout for login page - no sidebar, no navigation
     // This overrides the parent agent layout
     return (
-        <div className="min-h-screen w-full">
-            {children}
-        </div>
+        <>
+            <ManifestLink />
+            <div className="min-h-screen w-full">
+                {children}
+            </div>
+        </>
     );
 }
