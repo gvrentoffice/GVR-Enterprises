@@ -5,7 +5,6 @@ const withPWA = require('@ducanh2912/next-pwa').default({
     skipWaiting: false,
     reloadOnOnline: true,
     fallbacks: {
-        image: '/fallback-image.png',
         document: '/offline.html',
     },
     buildExcludes: [/middleware-manifest.json$/],
@@ -127,12 +126,12 @@ module.exports = withPWA({
                     key: 'Content-Security-Policy',
                     value: [
                         "default-src 'self'",
-                        "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://www.googletagmanager.com",
+                        "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://www.googletagmanager.com https://www.google.com https://apis.google.com",
                         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
                         "font-src 'self' https://fonts.gstatic.com data:",
                         "img-src 'self' data: blob: https: http:",
-                        "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net wss://*.firebaseio.com",
-                        "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com",
+                        "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com",
+                        "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://www.google.com https://recaptcha.google.com",
                         "object-src 'none'",
                         "base-uri 'self'",
                         "form-action 'self'",
