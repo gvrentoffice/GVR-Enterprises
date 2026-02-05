@@ -553,7 +553,7 @@ function LoginForm() {
     };
 
     return (
-        <div className="min-h-screen flex flex-col justify-center bg-gradient-to-br from-amber-50 via-orange-50 to-red-50">
+        <div className="min-h-screen flex flex-col justify-center bg-gradient-to-br from-zinc-50 via-amber-50/30 to-orange-50/20">
             <div className="w-full max-w-[440px] mx-auto px-4 py-4 md:py-8">
                 {/* Logo Section */}
                 <div className="text-center mb-6 pt-[10px]">
@@ -576,7 +576,7 @@ function LoginForm() {
                 </div>
 
                 {/* Login Card */}
-                <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 p-5 md:p-8 space-y-6">
+                <div className="backdrop-blur-xl bg-white/70 border border-white/50 shadow-2xl shadow-amber-500/10 rounded-3xl p-5 md:p-8 space-y-6">
 
                     {isStaffMode ? (
                         /* Admin Login */

@@ -302,7 +302,7 @@ export default function CustomersPage() {
     return (
         <div className="container mx-auto p-6 space-y-6">
             {/* Header */}
-            <Card className="border-zinc-200">
+            <Card variant="glass" className="border-zinc-200">
                 <CardHeader>
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
@@ -365,7 +365,7 @@ export default function CustomersPage() {
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="border-zinc-200">
+                <Card variant="glass" className="border-zinc-200">
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                             <div>
@@ -379,7 +379,7 @@ export default function CustomersPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-zinc-200">
+                <Card variant="glass" className="border-zinc-200">
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                             <div>
@@ -395,7 +395,7 @@ export default function CustomersPage() {
                     </CardContent>
                 </Card>
 
-                <Card className="border-zinc-200">
+                <Card variant="glass" className="border-zinc-200">
                     <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                             <div>
@@ -415,7 +415,7 @@ export default function CustomersPage() {
             {/* Leads Grid - 2 columns mobile, 5 columns desktop */}
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                 {filteredLeads.map((lead) => (
-                    <Card key={lead.id} className="border-zinc-200 hover:shadow-lg transition-shadow">
+                    <Card key={lead.id} variant="glass" className="border-zinc-200 hover:shadow-xl transition-shadow">
                         <CardHeader className="pb-3">
                             <div className="flex justify-between items-start gap-2">
                                 <div className="flex items-start gap-2 min-w-0">

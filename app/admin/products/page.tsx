@@ -260,7 +260,7 @@ export default function AdminProductsPage() {
                         </div>
 
                         {/* Products Table */}
-                        <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
+                        <div className="glass-light rounded-2xl overflow-hidden">
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left">
                                     <thead className="bg-zinc-50 border-b border-zinc-100">

@@ -129,7 +129,7 @@ export default function AgentOrdersPage() {
 
                         return (
                             <Link key={order.id} href={`/agent/orders/${order.id}`}>
-                                <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm active:scale-[0.98] transition-all group">
+                                <div className="glass-standard p-4 rounded-xl active:scale-[0.98] transition-all group hover:shadow-xl">
                                     <div className="flex justify-between items-start mb-3">
                                         <div>
                                             <h3 className="font-bold text-gray-900 group-hover:text-amber-600 transition-colors">

@@ -136,9 +136,9 @@ export default function CheckoutPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-amber-50/30 to-orange-50/20">
             {/* Header */}
-            <div className="bg-white border-b border-gray-200">
+            <div className="backdrop-blur-xl bg-white/70 border-b border-white/50 shadow-lg">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <Link href="/shop/cart" className="inline-flex items-center text-amber-600 hover:text-amber-700 mb-4">
                         <ArrowLeft className="w-4 h-4 mr-2" />
@@ -155,7 +155,7 @@ export default function CheckoutPage() {
                     {/* Main Content */}
                     <div className="lg:col-span-2 space-y-6">
                         {/* Delivery Address */}
-                        <div className="bg-white rounded-lg border border-gray-200 p-6">
+                        <div className="glass-standard rounded-2xl p-6">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="p-2 bg-amber-50 rounded-lg">
                                     <MapPin className="w-5 h-5 text-amber-600" />
@@ -178,7 +178,7 @@ export default function CheckoutPage() {
                         </div>
 
                         {/* Order Items */}
-                        <div className="bg-white rounded-lg border border-gray-200 p-6">
+                        <div className="glass-standard rounded-2xl p-6">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="p-2 bg-amber-50 rounded-lg">
                                     <FileText className="w-5 h-5 text-amber-600" />
@@ -221,7 +221,7 @@ export default function CheckoutPage() {
 
                     {/* Order Summary Sidebar */}
                     <div className="lg:col-span-1">
-                        <div className="bg-white rounded-lg border border-gray-200 p-6 sticky top-4">
+                        <div className="glass-standard rounded-2xl p-6 sticky top-4">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="p-2 bg-amber-50 rounded-lg">
                                     <CreditCard className="w-5 h-5 text-amber-600" />
@@ -257,9 +257,10 @@ export default function CheckoutPage() {
                             </div>
 
                             <Button
+                                variant="gradient"
                                 onClick={handlePlaceOrder}
                                 disabled={isSubmitting}
-                                className="w-full bg-amber-600 hover:bg-amber-700 text-lg py-6"
+                                className="w-full text-lg py-6"
                             >
                                 {isSubmitting ? 'Placing Order...' : 'Place Order'}
                             </Button>

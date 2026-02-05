@@ -55,9 +55,9 @@ export default function RegisterPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50 flex items-center justify-center px-4">
+        <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-amber-50/30 to-orange-50/20 flex items-center justify-center px-4">
             <div className="w-full max-w-md">
-                <div className="bg-white rounded-lg shadow-lg p-8">
+                <div className="backdrop-blur-xl bg-white/70 border border-white/50 shadow-2xl shadow-amber-500/10 rounded-2xl p-8">
                     <h2 className="text-2xl font-bold text-gray-900 mb-6">Create Account</h2>
 
                     {(error || authError) && (

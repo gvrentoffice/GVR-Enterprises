@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Phone, User, Lock } from 'lucide-react';
 import { createSession } from '@/app/actions/auth';
-import { verifyAdminCredentials } from '@/lib/firebase/services/adminAuthService';
+import { verifyAdminAction } from '@/app/actions/adminAuth';
 
 export default function AdminLoginPage() {
     const router = useRouter();
@@ -24,8 +24,8 @@ export default function AdminLoginPage() {
         setLoading(true);
 
         try {
-            // Verify admin credentials using proper authentication service
-            const result = await verifyAdminCredentials(username, password, phoneNumber);
+            // Verify admin credentials using server action
+            const result = await verifyAdminAction(username, password, phoneNumber);
 
             if (result.success && result.adminId) {
                 // Create admin session

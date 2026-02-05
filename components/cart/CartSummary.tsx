@@ -13,7 +13,7 @@ interface CartSummaryProps {
 
 export function CartSummary({ cart, isLoading }: CartSummaryProps) {
     return (
-        <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 sticky top-4">
+        <div className="glass-standard rounded-2xl p-6 sticky top-4">
             <h3 className="font-semibold text-gray-900 mb-4 text-lg">Order Summary</h3>
 
             {/* Pricing Breakdown */}
@@ -53,7 +53,8 @@ export function CartSummary({ cart, isLoading }: CartSummaryProps) {
             <div className="space-y-2">
                 <Link href="/shop/checkout" className="block">
                     <Button
-                        className="w-full bg-amber-600 hover:bg-amber-700 text-white h-12"
+                        variant="gradient"
+                        className="w-full h-12"
                         disabled={isLoading || cart.items.length === 0}
                     >
                         Proceed to Checkout

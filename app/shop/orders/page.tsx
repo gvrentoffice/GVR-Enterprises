@@ -49,7 +49,8 @@ export default function CustomerOrdersPage() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto space-y-6 pb-24 animate-in fade-in duration-500">
+        <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-amber-50/30 to-orange-50/20">
+            <div className="max-w-4xl mx-auto space-y-6 pb-24 pt-8 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">My Orders</h1>
@@ -89,7 +90,7 @@ export default function CustomerOrdersPage() {
 
             <div className="grid gap-4">
                 {filteredOrders.length === 0 ? (
-                    <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
+                    <div className="text-center py-20 glass-standard rounded-3xl border border-dashed border-white/50">
                         <div className="bg-gray-50 h-20 w-20 rounded-full flex items-center justify-center mx-auto mb-4">
                             <ShoppingBag className="w-10 h-10 text-gray-300" />
                         </div>
@@ -107,7 +108,7 @@ export default function CustomerOrdersPage() {
 
                         return (
                             <Link key={order.id} href={`/shop/orders/${order.id}`}>
-                                <div className="bg-white p-5 rounded-3xl border border-gray-50 shadow-sm hover:shadow-md transition-all group overflow-hidden relative">
+                                <div className="glass-standard p-5 rounded-3xl hover:shadow-xl transition-all group overflow-hidden relative">
                                     <div className="flex justify-between items-start mb-4">
                                         <div>
                                             <div className="flex items-center gap-2">
@@ -169,6 +170,7 @@ export default function CustomerOrdersPage() {
                     })
                 )}
             </div>
+        </div>
         </div>
     );
 }

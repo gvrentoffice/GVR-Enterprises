@@ -22,9 +22,9 @@ export default function CartPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-amber-50/30 to-orange-50/20">
             {/* Header */}
-            <div className="bg-white border-b border-gray-200">
+            <div className="backdrop-blur-xl bg-white/70 border-b border-white/50 shadow-lg">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     <div className="flex items-center gap-2 mb-4">
                         <Link
@@ -52,7 +52,7 @@ export default function CartPage() {
                 ) : (
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Cart Items */}
-                        <div className="lg:col-span-2 bg-white rounded-lg border border-gray-200 overflow-hidden">
+                        <div className="lg:col-span-2 glass-standard rounded-2xl overflow-hidden">
                             <div className="p-6">
                                 {cart.items.map((item) => (
                                     <CartItem

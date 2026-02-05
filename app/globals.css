@@ -157,3 +157,92 @@ body {
     page-break-after: always;
   }
 }
+
+/* ========================================
+   GLASSMORPHISM DESIGN SYSTEM
+   ======================================== */
+
+/* Glass Variants - Reusable utility classes */
+.glass-light {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 32px 0 rgba(217, 119, 6, 0.08);
+}
+
+.glass-standard {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 25px 50px -12px rgba(217, 119, 6, 0.1);
+}
+
+.glass-strong {
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 25px 50px -12px rgba(217, 119, 6, 0.15);
+}
+
+.glass-modal {
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+}
+
+/* Gradient Backgrounds */
+.gradient-zinc-amber {
+  background: linear-gradient(135deg, #fafafa 0%, #fffbeb 30%, #fff7ed 100%);
+}
+
+.gradient-zinc-amber-strong {
+  background: linear-gradient(135deg, #f4f4f5 0%, #fef3c7 50%, #fed7aa 100%);
+}
+
+.gradient-amber-accent {
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.05) 0%, rgba(251, 146, 60, 0.08) 100%);
+}
+
+/* Overlay gradient for modals/dialogs */
+.glass-overlay {
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.4) 0%, rgba(24, 24, 27, 0.5) 100%);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Border utilities */
+.border-glass {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.border-glass-amber {
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+/* Dark Mode Glassmorphism */
+@media (prefers-color-scheme: dark) {
+  .glass-light {
+    background: rgba(24, 24, 27, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-standard {
+    background: rgba(24, 24, 27, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .glass-strong {
+    background: rgba(24, 24, 27, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .glass-modal {
+    background: rgba(24, 24, 27, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+}
