@@ -39,6 +39,9 @@ const withPWA = require('@ducanh2912/next-pwa').default({
 module.exports = withPWA({
     reactStrictMode: true,
 
+    // Exclude firebase-admin from bundling (fixes "WriteBatch is not a constructor" error)
+    serverExternalPackages: ['firebase-admin'],
+
     // Image optimization
     images: {
         remotePatterns: [

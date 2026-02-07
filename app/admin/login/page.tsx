@@ -35,6 +35,19 @@ export default function AdminLoginPage() {
                 localStorage.setItem('isAdminLoggedIn', 'true');
                 localStorage.setItem('adminId', result.adminId);
 
+                // If Firebase custom token is available, sign in with Firebase Auth
+                if (result.customToken) {
+                    try {
+                        const { auth } = await import('@/lib/firebase/config');
+                        const { signInWithCustomToken } = await import('firebase/auth');
+                        await signInWithCustomToken(auth, result.customToken);
+                        localStorage.setItem('firebaseAuthEnabled', 'true');
+                    } catch (firebaseError) {
+                        console.warn('Firebase Auth signup optional:', firebaseError);
+                        // Not critical - app still works without Firebase Auth for this operation
+                    }
+                }
+
                 toast({
                     title: "Admin Login Successful",
                     description: "Welcome back, Admin!",

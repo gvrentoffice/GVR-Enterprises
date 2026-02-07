@@ -3,10 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
     getLeadsByStatus,
-    createLead,
     getLeadById,
     subscribeToAgentLeads,
 } from '@/lib/firebase/services/leadService';
+import { createLeadAction } from '@/app/actions/leadActions';
 import type { Lead } from '@/lib/firebase/schema';
 
 export function useLead(leadId: string | undefined) {
@@ -96,12 +96,16 @@ export function useCreateLead() {
     const [error, setError] = useState<string | null>(null);
 
     const create = useCallback(
-        async (leadData: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>) => {
+        async (leadData: Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'tenantId'>) => {
             try {
                 setLoading(true);
                 setError(null);
-                const leadId = await createLead(leadData);
-                return leadId;
+                // Use server action instead of client-side Firebase
+                const result = await createLeadAction(leadData);
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to create lead');
+                }
+                return result.leadId;
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'Failed to create lead';
                 setError(message);

@@ -7,10 +7,15 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Check if user has admin role in users collection
-      return isAuthenticated() &&
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      // Check if user has admin role in users collection OR has admin custom claim
+      return isAuthenticated() && (
+        // Traditional: Check users collection for admin role
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+        // Custom token: Check for admin claim in token
+        request.auth.token.admin == true ||
+        request.auth.token.isAdmin == true
+      );
     }
 
     function isAgent() {

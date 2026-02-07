@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthContext } from '@/app/AuthContext';
-import { getAgentByUserId, agentCheckIn, agentCheckOut } from '@/lib/firebase/services/agentService';
+import { getAgentByUserId } from '@/lib/firebase/services/agentService';
+import { agentCheckInAction, agentCheckOutAction } from '@/app/actions/routeActions';
 import type { Agent } from '@/lib/firebase/schema';
 
 export function useAgent() {
@@ -47,20 +48,22 @@ export function useAgent() {
 
     const performCheckIn = useCallback(async (location: { latitude: number; longitude: number }) => {
         if (!agent) return false;
-        const success = await agentCheckIn(agent.id, location);
-        if (success) {
+        // Use server action instead of client-side Firebase
+        const result = await agentCheckInAction(agent.id, location);
+        if (result.success) {
             setAgent(prev => prev ? { ...prev, status: 'active', attendance: { ...prev.attendance, checkIn: new Date() as any } } : null);
         }
-        return success;
+        return result.success;
     }, [agent]);
 
     const performCheckOut = useCallback(async () => {
         if (!agent) return false;
-        const success = await agentCheckOut(agent.id);
-        if (success) {
+        // Use server action instead of client-side Firebase
+        const result = await agentCheckOutAction(agent.id);
+        if (result.success) {
             setAgent(prev => prev ? { ...prev, status: 'inactive', attendance: { ...prev.attendance, checkOut: new Date() as any } } : null);
         }
-        return success;
+        return result.success;
     }, [agent]);
 
     return { agent, loading, error, checkIn: performCheckIn, checkOut: performCheckOut };

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { getAllAgents, createAgent, getAgentById } from '@/lib/firebase/services/agentService';
+import { getAllAgents, getAgentById } from '@/lib/firebase/services/agentService';
 import type { Agent } from '@/lib/firebase/schema';
 
 export function useAllAgents() {
@@ -67,10 +67,17 @@ export function useCreateAgent() {
         try {
             setLoading(true);
             setError(null);
-            const agentId = await createAgent(agentData);
-            return agentId;
+            const { createAgentAction } = await import('@/app/actions/agentActions');
+            const result = await createAgentAction(agentData);
+
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to create agent');
+            }
+
+            return result.agentId || '';
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to create agent');
+            const errorMessage = err instanceof Error ? err.message : 'Failed to create agent';
+            setError(errorMessage);
             throw err;
         } finally {
             setLoading(false);
@@ -88,10 +95,15 @@ export function useUpdateAgent() {
         try {
             setLoading(true);
             setError(null);
-            const { updateAgent } = await import('@/lib/firebase/services/agentService');
-            await updateAgent(agentId, updates);
+            const { updateAgentAction } = await import('@/app/actions/agentActions');
+            const result = await updateAgentAction(agentId, updates);
+
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to update agent');
+            }
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to update agent');
+            const errorMessage = err instanceof Error ? err.message : 'Failed to update agent';
+            setError(errorMessage);
             throw err;
         } finally {
             setLoading(false);
